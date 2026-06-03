@@ -64,6 +64,10 @@ TRANSLATIONS = {
         "password": "Contraseña", "public_key": "Clave SSH privada",
         "ssh_fingerprint_manual": "Host nuevo: responde al fingerprint en esta terminal. Después introduce la contraseña manualmente o con Super+Shift+P.",
         "password_warning": "Aviso: la contraseña se guardará en texto plano en connections.json.",
+        "server_required_fields": "Nombre, host y usuario SSH son obligatorios.",
+        "delete_group_confirm": "Eliminar grupo",
+        "delete_group_confirm_detail": "¿Quieres eliminar {name}? También se eliminarán todos sus subgrupos y servidores. Esta acción no se puede deshacer.",
+        "group_deleted": "Grupo eliminado: {name}",
         "theme": "Tema", "language": "Idioma", "restart_language": "El idioma se aplicará al reiniciar la aplicación.",
         "close_tab": "Cerrar pestaña", "disconnect": "Desconectar", "connecting": "Conectando",
         "close_tab_on_disconnect": "Cerrar la pestaña al desconectar una sesión",
@@ -113,6 +117,10 @@ TRANSLATIONS = {
         "password": "Contrasenya", "public_key": "Clau SSH privada",
         "ssh_fingerprint_manual": "Host nou: respon al fingerprint en aquest terminal. Després introdueix la contrasenya manualment o amb Super+Shift+P.",
         "password_warning": "Avís: la contrasenya es desarà en text pla a connections.json.",
+        "server_required_fields": "El nom, el host i l'usuari SSH són obligatoris.",
+        "delete_group_confirm": "Eliminar grup",
+        "delete_group_confirm_detail": "Vols eliminar {name}? També s'eliminaran tots els subgrups i servidors. Aquesta acció no es pot desfer.",
+        "group_deleted": "Grup eliminat: {name}",
         "theme": "Tema", "language": "Idioma", "restart_language": "L'idioma s'aplicarà en reiniciar l'aplicació.",
         "close_tab": "Tancar pestanya", "disconnect": "Desconnectar", "connecting": "Connectant",
         "close_tab_on_disconnect": "Tancar la pestanya en desconnectar una sessió",
@@ -162,6 +170,10 @@ TRANSLATIONS = {
         "password": "Password", "public_key": "Private SSH key",
         "ssh_fingerprint_manual": "New host: answer the fingerprint prompt in this terminal. Then enter the password manually or with Super+Shift+P.",
         "password_warning": "Warning: the password will be stored as plain text in connections.json.",
+        "server_required_fields": "Name, host, and SSH user are required.",
+        "delete_group_confirm": "Delete group",
+        "delete_group_confirm_detail": "Delete {name}? All nested subgroups and servers will also be deleted. This action cannot be undone.",
+        "group_deleted": "Group deleted: {name}",
         "theme": "Theme", "language": "Language", "restart_language": "The language will apply after restarting the application.",
         "close_tab": "Close tab", "disconnect": "Disconnect", "connecting": "Connecting",
         "close_tab_on_disconnect": "Close the tab when disconnecting a session",
@@ -312,8 +324,22 @@ class ConnectionStore:
             app=AppSettings(**payload.get("app", {})),
             statistics=self.statistics_store.data,
         )
-        if "statistics" in payload:
+        repaired = self.repair_references()
+        if "statistics" in payload or repaired:
             self.save()
+
+    def repair_references(self) -> bool:
+        group_ids = {group.id for group in self.data.groups}
+        repaired = False
+        for group in self.data.groups:
+            if group.parent_id is not None and group.parent_id not in group_ids:
+                group.parent_id = None
+                repaired = True
+        for server in self.data.servers:
+            if server.group_id is not None and server.group_id not in group_ids:
+                server.group_id = None
+                repaired = True
+        return repaired
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -999,13 +1025,36 @@ class TermiaWindow(Gtk.ApplicationWindow):
 
     def on_group_context_delete(self, _button: Gtk.Button, popover: Gtk.Popover, group_id: str) -> None:
         popover.popdown()
+        self.request_delete_group(group_id)
+
+    def request_delete_group(self, group_id: str) -> None:
         group = self.find_group(group_id)
-        if group:
-            self.store.delete_group(group_id)
-            self.selected = None
-            self.toast_label.set_label(f"Grupo eliminado: {group.name}")
-            self.refresh_list()
-            self.render_detail()
+        if group is None:
+            return
+        dialog = Gtk.AlertDialog(
+            message=self.t("delete_group_confirm"),
+            detail=self.t("delete_group_confirm_detail").format(name=group.name),
+        )
+        dialog.set_buttons([self.t("cancel"), self.t("delete_group")])
+        dialog.set_cancel_button(0)
+        dialog.set_default_button(0)
+        dialog.choose(self, None, self.on_delete_group_confirmed, (dialog, group_id, group.name))
+
+    def on_delete_group_confirmed(
+        self, dialog: Gtk.AlertDialog, result: Gio.AsyncResult, data: tuple[Gtk.AlertDialog, str, str]
+    ) -> None:
+        _dialog, group_id, group_name = data
+        try:
+            response = dialog.choose_finish(result)
+        except GLib.Error:
+            return
+        if response != 1:
+            return
+        self.store.delete_group(group_id)
+        self.selected = None
+        self.toast_label.set_label(self.t("group_deleted").format(name=group_name))
+        self.refresh_list()
+        self.render_detail()
 
     def set_all_groups_expanded(self, expanded: bool) -> None:
         for expander in self.group_expanders:
@@ -1444,12 +1493,8 @@ class TermiaWindow(Gtk.ApplicationWindow):
         if self.selected is None:
             return
         if self.selected.kind == "group" and self.selected.item_id:
-            group = self.find_group(self.selected.item_id)
-            self.store.delete_group(self.selected.item_id)
-            self.toast_label.set_label(
-                f"Grupo eliminado: {group.name}" if group else "Grupo eliminado"
-            )
-            self.selected = None
+            self.request_delete_group(self.selected.item_id)
+            return
         elif self.selected.kind == "server":
             server = self.find_server(self.selected.item_id)
             self.store.delete_server(self.selected.item_id)
@@ -2764,7 +2809,10 @@ class TermiaWindow(Gtk.ApplicationWindow):
         password = widgets["password"].get_text()
         public_key = widgets["public_key"].get_text().strip()
 
-        if response == Gtk.ResponseType.OK and name and host and user:
+        if response == Gtk.ResponseType.OK:
+            if not name or not host or not user:
+                self.toast_label.set_label(self.t("server_required_fields"))
+                return
             if server:
                 self.store.update_server(server.id, name, host, user, port, group_id, password, public_key)
             else:
