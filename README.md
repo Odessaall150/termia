@@ -71,8 +71,18 @@ Check an existing installation without changing the system:
 ./scripts/install_dependencies.sh --check
 ```
 
-The dependency installer supports Debian or Ubuntu, Fedora, and Arch Linux
+The dependency installer supports Debian, Ubuntu, Linux Mint, Fedora, and Arch Linux
 package managers. Other Linux distributions require equivalent packages.
+
+If `./scripts/install_dependencies.sh --check` reports a missing `Vte 3.91`
+namespace, install the runtime dependencies first:
+
+```bash
+./scripts/install_dependencies.sh
+```
+
+On Debian, Ubuntu, or Linux Mint the required GTK 4 VTE package is
+`gir1.2-vte-3.91`.
 
 ## Run from a clone
 

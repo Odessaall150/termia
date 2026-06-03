@@ -6,12 +6,53 @@ set -euo pipefail
 # Verify the Python introspection bindings required by the GTK application.
 check_python_modules() {
   python3 - <<'PY_CHECK'
-import gi
-gi.require_version("Gtk", "4.0")
-gi.require_version("Gdk", "4.0")
-gi.require_version("Pango", "1.0")
-gi.require_version("Vte", "3.91")
-from gi.repository import Gtk, Gdk, Pango, Vte
+import sys
+
+PACKAGE_HINTS = {
+    "Gtk": "gir1.2-gtk-4.0",
+    "Gdk": "gir1.2-gtk-4.0",
+    "Pango": "gir1.2-pango-1.0",
+    "Vte": "gir1.2-vte-3.91",
+}
+
+
+def fail(message):
+    print(message, file=sys.stderr)
+    print("Install Termia dependencies with: ./scripts/install_dependencies.sh", file=sys.stderr)
+    print(
+        "Debian/Ubuntu/Linux Mint package hint: sudo apt install python3-gi "
+        "gir1.2-gtk-4.0 gir1.2-vte-3.91 python3-yaml openssh-client sshpass",
+        file=sys.stderr,
+    )
+    print("Termia requires GTK 4 VTE (Vte 3.91); Vte 2.91 is not enough.", file=sys.stderr)
+    sys.exit(1)
+
+
+try:
+    import gi
+except ImportError:
+    fail("Missing Python GObject bindings: python3-gi / python3-gobject is not installed.")
+
+requirements = [
+    ("Gtk", "4.0"),
+    ("Gdk", "4.0"),
+    ("Pango", "1.0"),
+    ("Vte", "3.91"),
+]
+for namespace, version in requirements:
+    try:
+        gi.require_version(namespace, version)
+    except ValueError:
+        fail(
+            f"Missing GObject namespace {namespace} {version}. "
+            f"Install package: {PACKAGE_HINTS.get(namespace, 'distribution-specific package')}."
+        )
+
+try:
+    from gi.repository import Gtk, Gdk, Pango, Vte
+except (ImportError, ValueError) as exc:
+    fail(f"Could not load GTK/VTE bindings: {exc}")
+
 print("Python/GTK dependencies OK")
 PY_CHECK
 }

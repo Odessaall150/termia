@@ -51,6 +51,16 @@ Comprueba dependencias sin modificar el sistema:
 ./scripts/install_dependencies.sh --check
 ```
 
+Si `./scripts/install_dependencies.sh --check` indica que falta el namespace
+`Vte 3.91`, instala primero las dependencias de ejecución:
+
+```bash
+./scripts/install_dependencies.sh
+```
+
+En Debian, Ubuntu o Linux Mint el paquete GTK 4 VTE necesario es
+`gir1.2-vte-3.91`.
+
 Elimina únicamente el lanzador de escritorio:
 
 ```bash
