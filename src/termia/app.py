@@ -61,7 +61,7 @@ TRANSLATIONS = {
         "sudo_password_sent": "Contraseña guardada enviada a la terminal",
         "sudo_password_unavailable": "Esta terminal no tiene una contraseña guardada",
         "close_app": "Cerrar Termia", "close_app_confirm": "¿Quieres cerrar Termia?",
-        "font_size": "Fuente y tamaño", "foreground": "Foreground", "background": "Background", "palettes": "Paletas",
+        "font_size": "Fuente y tamaño", "terminal_font_size_changed": "Tamaño de fuente del terminal: {size}", "foreground": "Foreground", "background": "Background", "palettes": "Paletas",
         "configuration": "Configuración", "connections_file": "Fichero de conexiones", "export_config": "Exportar configuración", "import_config": "Importar configuración",
         "summary": "{groups} grupos · {subgroups} subgrupos · {servers} servidores",
         "import_asbru": "Importar configuración de Ásbrú", "clear_config": "Eliminar toda la configuración", "configure_terminal": "Configurar terminal", "local_terminal": "Terminal local",
@@ -110,7 +110,7 @@ TRANSLATIONS = {
         "sudo_password_sent": "Contrasenya desada enviada al terminal",
         "sudo_password_unavailable": "Aquest terminal no té cap contrasenya desada",
         "close_app": "Tancar Termia", "close_app_confirm": "Vols tancar Termia?",
-        "font_size": "Tipus de lletra i mida", "foreground": "Primer pla", "background": "Fons", "palettes": "Paletes",
+        "font_size": "Tipus de lletra i mida", "terminal_font_size_changed": "Mida de la lletra del terminal: {size}", "foreground": "Primer pla", "background": "Fons", "palettes": "Paletes",
         "configuration": "Configuració", "connections_file": "Fitxer de connexions", "export_config": "Exportar configuració", "import_config": "Importar configuració",
         "summary": "{groups} grups · {subgroups} subgrups · {servers} servidors",
         "import_asbru": "Importar configuració d'Ásbrú", "clear_config": "Eliminar tota la configuració", "configure_terminal": "Configurar terminal", "local_terminal": "Terminal local",
@@ -159,7 +159,7 @@ TRANSLATIONS = {
         "sudo_password_sent": "Saved password sent to the terminal",
         "sudo_password_unavailable": "This terminal does not have a saved password",
         "close_app": "Close Termia", "close_app_confirm": "Do you want to close Termia?",
-        "font_size": "Font and size", "foreground": "Foreground", "background": "Background", "palettes": "Palettes",
+        "font_size": "Font and size", "terminal_font_size_changed": "Terminal font size: {size}", "foreground": "Foreground", "background": "Background", "palettes": "Palettes",
         "configuration": "Configuration", "connections_file": "Connections file", "export_config": "Export configuration", "import_config": "Import configuration",
         "summary": "{groups} groups · {subgroups} subgroups · {servers} servers",
         "import_asbru": "Import Ásbrú configuration", "clear_config": "Delete all configuration", "configure_terminal": "Configure terminal", "local_terminal": "Local terminal",
@@ -1748,6 +1748,13 @@ class TermiaWindow(Gtk.ApplicationWindow):
             stats.commands += 1
             self.run_commands += 1
         self.schedule_statistics_save()
+        if state & Gdk.ModifierType.CONTROL_MASK:
+            if keyval in (Gdk.KEY_plus, Gdk.KEY_equal, Gdk.KEY_KP_Add):
+                self.change_terminal_font_size(1)
+                return True
+            if keyval in (Gdk.KEY_minus, Gdk.KEY_underscore, Gdk.KEY_KP_Subtract):
+                self.change_terminal_font_size(-1)
+                return True
         required_modifiers = Gdk.ModifierType.SUPER_MASK | Gdk.ModifierType.SHIFT_MASK
         if (
             self.store.data.app.sudo_password_shortcut
@@ -1757,6 +1764,21 @@ class TermiaWindow(Gtk.ApplicationWindow):
             self.send_saved_password(session)
             return True
         return False
+
+    def change_terminal_font_size(self, delta: int) -> None:
+        settings = self.store.data.terminal
+        new_size = max(6, min(settings.font_size + delta, 72))
+        if new_size == settings.font_size:
+            return
+        self.store.update_terminal_settings(
+            settings.font_family,
+            new_size,
+            settings.foreground,
+            settings.background,
+            settings.ls_colors,
+        )
+        self.apply_terminal_settings_to_open_tabs()
+        self.toast_label.set_label(self.t("terminal_font_size_changed").format(size=new_size))
 
     def send_saved_password(self, session: TerminalSession) -> None:
         server = self.find_server(session.server_id) if session.server_id is not None else None
