@@ -4,6 +4,7 @@ Termia is a GTK 4 SSH connection manager with embedded VTE terminals for
 Linux desktops.
 
 Spanish documentation: [docs/README.es.md](docs/README.es.md)
+Catalan documentation: [docs/README.ca.md](docs/README.ca.md)
 
 ## Features
 
@@ -38,6 +39,7 @@ scripts/install_dependencies.sh
 scripts/install_desktop.sh
 scripts/uninstall_desktop.sh
 docs/README.es.md             Spanish documentation
+docs/README.ca.md             Catalan documentation
 SECURITY.md                    Credential storage warning
 THIRD_PARTY_NOTICES.md         Runtime dependency licenses
 LICENSE                       MIT license

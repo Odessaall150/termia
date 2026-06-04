@@ -1,0 +1,121 @@
+# Termia
+
+Termia és un gestor de connexions SSH per a escriptoris Linux desenvolupat amb
+Python, GTK 4 i terminals VTE incrustats.
+
+Documentació principal en anglès: [../README.md](../README.md)
+Documentació en castellà: [README.es.md](README.es.md)
+
+## Funcionalitats
+
+- Crear, editar, moure i eliminar grups i subgrups de servidors.
+- Desar servidors amb nom, host o IP, usuari, port, contrasenya i ruta de clau
+  privada.
+- Filtrar servidors i obrir diverses sessions al mateix host en pestanyes.
+- Reordenar pestanyes arrossegant-les i moure una pestanya a una finestra independent.
+- Obrir terminals locals incrustats.
+- Desar estadístiques locals agregades de connexions, ordres, pulsacions i durada.
+- Mostrar estadístiques per terminal i tancar opcionalment la pestanya en desconnectar.
+- Configurar confirmacions per desconnectar sessions i tancar Termia.
+- Enviar opcionalment la contrasenya SSH desada a un terminal remot amb `Super+Shift+P`, amb `Enter` o sense.
+- Configurar tipus de lletra, mida, colors i tema del terminal.
+- Usar la interfície en castellà, català o anglès. L'idioma inicial segueix el locale del sistema quan està suportat.
+- Importar i exportar configuracions de Termia.
+- Importar connexions i grups imbricats bàsics des de YAML d'Asbru.
+
+## Entorn provat
+
+Termia s'ha provat en Ubuntu 24.04.4 LTS amb kernel Linux
+6.8.0-117-generic, GNOME 46.0 i Wayland.
+
+## Descarregar i instal·lar
+
+Clona el repositori complet:
+
+```bash
+git clone https://github.com/buuuki/termia.git
+cd termia
+chmod +x scripts/*.sh
+```
+
+Comprova primer les dependències sense modificar el sistema:
+
+```bash
+./scripts/install_dependencies.sh --check
+```
+
+Si la comprovació indica que falten dependències, instal·la-les amb:
+
+```bash
+./scripts/install_dependencies.sh
+```
+
+L'instal·lador verifica el resultat després d'instal·lar. També pots repetir la
+comprovació en qualsevol moment:
+
+```bash
+./scripts/install_dependencies.sh --check
+```
+
+Si la comprovació indica que falta el namespace `Vte 3.91`, falta el paquet
+d'introspecció GTK 4 VTE. En Debian, Ubuntu o Linux Mint el paquet necessari és
+`gir1.2-vte-3.91`.
+
+Instal·la el llançador d'escriptori amb:
+
+```bash
+./scripts/install_desktop.sh
+```
+
+També pots executar Termia directament des del repositori:
+
+```bash
+python3 run_termia.py
+```
+
+Elimina únicament el llançador d'escriptori:
+
+```bash
+./scripts/uninstall_desktop.sh
+```
+
+## Dades de l'usuari i seguretat
+
+Les connexions i preferències es desen fora del repositori:
+
+```text
+~/.config/termia/connections.json
+```
+
+Les contrasenyes desades i els fitxers exportats poden contenir credencials en
+text pla. Els comptadors locals agregats es desen per separat a:
+
+```text
+~/.local/state/termia/statistics.json
+```
+
+Termia no desa el text escrit, el contingut de les ordres ni el contingut del
+porta-retalls. Les estadístiques s'escriuen com a màxim cada 30 segons mentre
+s'escriu, en finalitzar sessions i en tancar Termia. Consulta
+[../SECURITY.md](../SECURITY.md).
+
+Python pot crear directoris `__pycache__/` al costat dels mòduls executats.
+Només contenen bytecode generat, estan exclosos per `.gitignore` i no s'han de
+pujar a GitHub.
+
+## Estructura
+
+```text
+run_termia.py                 Llançador per executar des del repositori
+src/termia/app.py             Implementació de l'aplicació
+src/termia/assets/            Imatges utilitzades per Termia
+scripts/                      Instal·lació i desinstal·lació
+docs/                         Documentació addicional
+LICENSE                       Llicència MIT
+```
+
+## Llicència
+
+Termia es publica sota la [llicència MIT](../LICENSE). Les dependències s'instal·len
+per separat mitjançant el gestor de paquets del sistema. Consulta
+[../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).

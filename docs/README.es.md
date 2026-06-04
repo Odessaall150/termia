@@ -4,6 +4,7 @@ Termia es un gestor de conexiones SSH para escritorios Linux desarrollado con
 Python, GTK 4 y terminales VTE embebidas.
 
 Documentación principal en inglés: [../README.md](../README.md)
+Documentación en catalán: [README.ca.md](README.ca.md)
 
 ## Funciones
 
