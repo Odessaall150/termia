@@ -35,7 +35,34 @@ Clona el repositorio completo:
 git clone https://github.com/buuuki/termia.git
 cd termia
 chmod +x scripts/*.sh
+```
+
+Comprueba primero las dependencias sin modificar el sistema:
+
+```bash
+./scripts/install_dependencies.sh --check
+```
+
+Si la comprobación indica que faltan dependencias, instálalas con:
+
+```bash
 ./scripts/install_dependencies.sh
+```
+
+El instalador verifica el resultado después de instalar. También puedes repetir la
+comprobación en cualquier momento:
+
+```bash
+./scripts/install_dependencies.sh --check
+```
+
+Si la comprobación indica que falta el namespace `Vte 3.91`, falta el paquete de
+introspección GTK 4 VTE. En Debian, Ubuntu o Linux Mint el paquete necesario es
+`gir1.2-vte-3.91`.
+
+Instala el lanzador de escritorio con:
+
+```bash
 ./scripts/install_desktop.sh
 ```
 
@@ -44,22 +71,6 @@ También puedes ejecutar Termia directamente desde el repositorio:
 ```bash
 python3 run_termia.py
 ```
-
-Comprueba dependencias sin modificar el sistema:
-
-```bash
-./scripts/install_dependencies.sh --check
-```
-
-Si `./scripts/install_dependencies.sh --check` indica que falta el namespace
-`Vte 3.91`, instala primero las dependencias de ejecución:
-
-```bash
-./scripts/install_dependencies.sh
-```
-
-En Debian, Ubuntu o Linux Mint el paquete GTK 4 VTE necesario es
-`gir1.2-vte-3.91`.
 
 Elimina únicamente el lanzador de escritorio:
 

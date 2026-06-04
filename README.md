@@ -58,14 +58,21 @@ cd termia
 
 ## Install dependencies
 
-Termia uses system GTK and VTE packages. Install them with:
+Termia uses system GTK and VTE packages. Check an existing installation first:
 
 ```bash
 chmod +x scripts/*.sh
+./scripts/install_dependencies.sh --check
+```
+
+If the check reports missing dependencies, install them with:
+
+```bash
 ./scripts/install_dependencies.sh
 ```
 
-Check an existing installation without changing the system:
+The installer verifies the result after installing. You can also run the check again
+at any time:
 
 ```bash
 ./scripts/install_dependencies.sh --check
@@ -74,14 +81,8 @@ Check an existing installation without changing the system:
 The dependency installer supports Debian, Ubuntu, Linux Mint, Fedora, and Arch Linux
 package managers. Other Linux distributions require equivalent packages.
 
-If `./scripts/install_dependencies.sh --check` reports a missing `Vte 3.91`
-namespace, install the runtime dependencies first:
-
-```bash
-./scripts/install_dependencies.sh
-```
-
-On Debian, Ubuntu, or Linux Mint the required GTK 4 VTE package is
+If the check reports a missing `Vte 3.91` namespace, the GTK 4 VTE introspection
+package is missing. On Debian, Ubuntu, or Linux Mint the package is
 `gir1.2-vte-3.91`.
 
 ## Run from a clone

@@ -3,6 +3,19 @@
 # SPDX-License-Identifier: MIT
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/install_dependencies.sh [--check|--help]
+
+Without arguments, install Termia runtime dependencies for the detected Linux
+package manager and verify the result.
+
+Options:
+  --check   Verify dependencies without installing anything.
+  --help    Show this help message.
+EOF
+}
+
 # Verify the Python introspection bindings required by the GTK application.
 check_python_modules() {
   python3 - <<'PY_CHECK'
@@ -18,7 +31,7 @@ PACKAGE_HINTS = {
 
 def fail(message):
     print(message, file=sys.stderr)
-    print("Install Termia dependencies with: ./scripts/install_dependencies.sh", file=sys.stderr)
+    print("Run ./scripts/install_dependencies.sh to install Termia dependencies.", file=sys.stderr)
     print(
         "Debian/Ubuntu/Linux Mint package hint: sudo apt install python3-gi "
         "gir1.2-gtk-4.0 gir1.2-vte-3.91 python3-yaml openssh-client sshpass",
@@ -57,55 +70,76 @@ print("Python/GTK dependencies OK")
 PY_CHECK
 }
 
-# Check-only mode is useful for development and troubleshooting.
-if [[ "${1:-}" == "--check" ]]; then
+check_command() {
+  local command_name="$1"
+  local package_hint="$2"
+  if ! command -v "${command_name}" >/dev/null 2>&1; then
+    echo "Missing command: ${command_name}. Install package: ${package_hint}." >&2
+    return 1
+  fi
+}
+
+run_checks() {
   check_python_modules
-  command -v ssh >/dev/null || { echo "Missing ssh in PATH" >&2; exit 1; }
-  command -v sshpass >/dev/null || { echo "Missing sshpass in PATH" >&2; exit 1; }
+  check_command ssh openssh-client
+  check_command sshpass sshpass
   echo "ssh and sshpass clients OK"
-  exit 0
-fi
+}
 
-# Install equivalent system packages for the detected Linux distribution.
-if command -v apt-get >/dev/null 2>&1; then
-  sudo apt-get update
-  sudo apt-get install -y \
-    python3 \
-    python3-gi \
-    python3-yaml \
-    gir1.2-gtk-4.0 \
-    gir1.2-vte-3.91 \
-    openssh-client \
-    sshpass \
-    desktop-file-utils
-elif command -v dnf >/dev/null 2>&1; then
-  sudo dnf install -y \
-    python3 \
-    python3-gobject \
-    python3-pyyaml \
-    gtk4 \
-    vte291-gtk4 \
-    openssh-clients \
-    sshpass \
-    desktop-file-utils
-elif command -v pacman >/dev/null 2>&1; then
-  sudo pacman -S --needed \
-    python \
-    python-gobject \
-    python-yaml \
-    gtk4 \
-    vte4 \
-    openssh \
-    sshpass \
-    desktop-file-utils
-else
-  echo "Could not detect apt-get, dnf, or pacman." >&2
-  echo "Install manually: Python 3, PyGObject, GTK 4, VTE GTK 4, openssh-client, sshpass, and desktop-file-utils." >&2
-  exit 1
-fi
+install_packages() {
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo apt-get install -y \
+      python3 \
+      python3-gi \
+      python3-yaml \
+      gir1.2-gtk-4.0 \
+      gir1.2-vte-3.91 \
+      openssh-client \
+      sshpass \
+      desktop-file-utils
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y \
+      python3 \
+      python3-gobject \
+      python3-pyyaml \
+      gtk4 \
+      vte291-gtk4 \
+      openssh-clients \
+      sshpass \
+      desktop-file-utils
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -S --needed \
+      python \
+      python-gobject \
+      python-yaml \
+      gtk4 \
+      vte4 \
+      openssh \
+      sshpass \
+      desktop-file-utils
+  else
+    echo "Could not detect apt-get, dnf, or pacman." >&2
+    echo "Install manually: Python 3, PyGObject, GTK 4, VTE GTK 4, openssh-client, sshpass, and desktop-file-utils." >&2
+    exit 1
+  fi
+}
 
-check_python_modules
-command -v ssh >/dev/null || { echo "Missing ssh in PATH" >&2; exit 1; }
-command -v sshpass >/dev/null || { echo "Missing sshpass in PATH" >&2; exit 1; }
-echo "ssh and sshpass clients OK"
-echo "Dependencies installed successfully"
+case "${1:-}" in
+  "")
+    install_packages
+    run_checks
+    echo "Dependencies installed successfully"
+    ;;
+  --check)
+    run_checks
+    ;;
+  --help|-h)
+    usage
+    ;;
+  *)
+    echo "Unknown option: $1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
