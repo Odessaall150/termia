@@ -2070,10 +2070,9 @@ class TermiaWindow(Gtk.ApplicationWindow):
         label = Gtk.Label(label=title)
         label.set_margin_start(2)
         label.set_margin_end(1)
-        close_button = Gtk.Button(label="×")
+        close_button = Gtk.Button(icon_name="window-close-symbolic")
         close_button.set_has_frame(False)
         close_button.set_tooltip_text(self.t("close_tab"))
-        close_button.set_size_request(26, 24)
         close_button.connect("clicked", self.on_request_close_tab, session_id, page)
         right_click = Gtk.GestureClick.new()
         right_click.set_button(3)
@@ -2618,7 +2617,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         grid = Gtk.Grid(column_spacing=12, row_spacing=12)
 
         font_button = Gtk.FontButton()
-        font_button.set_font(f"{settings.font_family} {settings.font_size}")
+        font_button.set_font_desc(Pango.FontDescription(f"{settings.font_family} {settings.font_size}"))
         font_button.set_use_font(True)
         font_button.set_use_size(True)
 
@@ -2706,6 +2705,18 @@ class TermiaWindow(Gtk.ApplicationWindow):
         foreground_button.set_rgba(parse_color(foreground, "#f2f2f2"))
         background_button.set_rgba(parse_color(background, "#101010"))
 
+    def font_description_from_button(self, font_button: Gtk.FontButton) -> Pango.FontDescription:
+        font = font_button.get_font_desc()
+        if font is None:
+            font = Pango.FontDescription(font_button.get_font() or "Monospace 11")
+        return font
+
+    def font_size_from_description(self, font: Pango.FontDescription, fallback: int) -> int:
+        size = font.get_size()
+        if size <= 0:
+            return fallback
+        return max(6, min(size // Pango.SCALE, 72))
+
     def update_terminal_preview(
         self,
         preview: Gtk.Label,
@@ -2713,13 +2724,14 @@ class TermiaWindow(Gtk.ApplicationWindow):
         foreground_button: Gtk.ColorButton,
         background_button: Gtk.ColorButton,
     ) -> None:
-        font = Pango.FontDescription(font_button.get_font() or "Monospace 11")
+        font = self.font_description_from_button(font_button)
+        font_size = self.font_size_from_description(font, self.store.data.terminal.font_size)
         foreground = foreground_button.get_rgba().to_string()
         background = background_button.get_rgba().to_string()
         css = (
             ".terminal-preview {"
             f"font-family: '{font.get_family() or 'Monospace'}';"
-            f"font-size: {max(font.get_size() // Pango.SCALE, 6)}pt;"
+            f"font-size: {font_size}pt;"
             f"color: {foreground};"
             f"background: {background};"
             "border-radius: 6px;"
@@ -2742,10 +2754,10 @@ class TermiaWindow(Gtk.ApplicationWindow):
         background_button: Gtk.ColorButton,
     ) -> None:
         if response == Gtk.ResponseType.OK:
-            font = Pango.FontDescription(font_button.get_font() or "Monospace 11")
+            font = self.font_description_from_button(font_button)
             self.store.update_terminal_settings(
                 font.get_family() or "Monospace",
-                max(font.get_size() // Pango.SCALE, 6),
+                self.font_size_from_description(font, self.store.data.terminal.font_size),
                 foreground_button.get_rgba().to_string(),
                 background_button.get_rgba().to_string(),
             )
