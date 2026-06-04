@@ -66,6 +66,8 @@ TRANSLATIONS = {
         "password_warning": "Aviso: la contraseña se guardará en texto plano en connections.json.",
         "server_required_fields": "Nombre, host y usuario SSH son obligatorios.",
         "required_field": "* Campo obligatorio",
+        "reconnect_prompt": "Pulsa Enter para reconectar.",
+        "close_tab_on_ssh_exit": "Cerrar la pestaña al salir de una sesión SSH con exit",
         "delete_group_confirm": "Eliminar grupo",
         "delete_group_confirm_detail": "¿Quieres eliminar {name}? También se eliminarán todos sus subgrupos y servidores. Esta acción no se puede deshacer.",
         "group_deleted": "Grupo eliminado: {name}",
@@ -120,6 +122,8 @@ TRANSLATIONS = {
         "password_warning": "Avís: la contrasenya es desarà en text pla a connections.json.",
         "server_required_fields": "El nom, el host i l'usuari SSH són obligatoris.",
         "required_field": "* Camp obligatori",
+        "reconnect_prompt": "Prem Enter per reconnectar.",
+        "close_tab_on_ssh_exit": "Tancar la pestanya en sortir d'una sessió SSH amb exit",
         "delete_group_confirm": "Eliminar grup",
         "delete_group_confirm_detail": "Vols eliminar {name}? També s'eliminaran tots els subgrups i servidors. Aquesta acció no es pot desfer.",
         "group_deleted": "Grup eliminat: {name}",
@@ -174,6 +178,8 @@ TRANSLATIONS = {
         "password_warning": "Warning: the password will be stored as plain text in connections.json.",
         "server_required_fields": "Name, host, and SSH user are required.",
         "required_field": "* Required field",
+        "reconnect_prompt": "Press Enter to reconnect.",
+        "close_tab_on_ssh_exit": "Close the tab when leaving an SSH session with exit",
         "delete_group_confirm": "Delete group",
         "delete_group_confirm_detail": "Delete {name}? All nested subgroups and servers will also be deleted. This action cannot be undone.",
         "group_deleted": "Group deleted: {name}",
@@ -259,6 +265,7 @@ class AppSettings:
     theme: str = "system"
     language: str = field(default_factory=detect_system_language)
     close_tab_on_disconnect: bool = False
+    close_tab_on_ssh_exit: bool = False
     confirm_disconnect: bool = True
     confirm_close_app: bool = False
     sudo_password_shortcut: bool = False
@@ -460,12 +467,13 @@ class ConnectionStore:
     def update_app_settings(
         self, theme: str, language: str, close_tab_on_disconnect: bool,
         confirm_disconnect: bool, confirm_close_app: bool,
-        sudo_password_shortcut: bool, sudo_password_enter: bool,
+        sudo_password_shortcut: bool, sudo_password_enter: bool, close_tab_on_ssh_exit: bool,
     ) -> None:
         self.data.app = AppSettings(
             theme=theme if theme in APP_THEMES else "system",
             language=language if language in LANGUAGES else detect_system_language(),
             close_tab_on_disconnect=close_tab_on_disconnect,
+            close_tab_on_ssh_exit=close_tab_on_ssh_exit,
             confirm_disconnect=confirm_disconnect,
             confirm_close_app=confirm_close_app,
             sudo_password_shortcut=sudo_password_shortcut,
@@ -501,6 +509,7 @@ class TerminalSession:
     child_pid: int | None = None
     connected: bool = True
     disconnect_requested: bool = False
+    pending_reconnect: bool = False
     keystrokes: int = 0
     commands: int = 0
     duration_recorded: bool = False
@@ -1691,13 +1700,24 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.open_tabs[session_id] = session
         self.notebook.set_current_page(page_num)
 
+        self.start_ssh_session(server, session)
+
+    def start_ssh_session(self, server: Server, session: TerminalSession) -> None:
+        terminal = session.terminal
+        session.started_at = time.monotonic()
+        session.duration_recorded = False
+        session.disconnect_requested = False
+        session.pending_reconnect = False
+        session.child_pid = None
+        session.connected = True
+        session.disconnect_button.set_sensitive(True)
+        session.status_label.set_label(self.t("connecting"))
+
         ssh_path = GLib.find_program_in_path("ssh")
         if ssh_path is None:
             terminal.feed(b"No se encontro el cliente ssh en el PATH.\r\n")
-            status_label.set_label("Sin ssh")
-            session.connected = False
-            disconnect_button.set_sensitive(False)
-            self.toast_label.set_label("No se encontro ssh en el PATH")
+            session.status_label.set_label("Sin ssh")
+            self.mark_session_for_reconnect(session, server, "No se encontro ssh en el PATH")
             return
 
         ssh_target = f"{server.user}@{server.host}"
@@ -1716,9 +1736,8 @@ class TermiaWindow(Gtk.ApplicationWindow):
             sshpass_path = GLib.find_program_in_path("sshpass")
             if sshpass_path is None:
                 terminal.feed(b"No se encontro sshpass. Instala sshpass o deja la contrasena vacia.\r\n")
-                status_label.set_label("Sin sshpass")
-                session.connected = False
-                disconnect_button.set_sensitive(False)
+                session.status_label.set_label("Sin sshpass")
+                self.mark_session_for_reconnect(session, server, "No se encontro sshpass")
                 return
             command = [sshpass_path, "-e", *command]
         terminal.feed(f"Conectando: {' '.join(command)}\r\n\r\n".encode())
@@ -1736,19 +1755,46 @@ class TermiaWindow(Gtk.ApplicationWindow):
             )
         except GLib.Error as exc:
             terminal.feed(f"No se pudo iniciar ssh: {exc.message}\r\n".encode())
-            status_label.set_label("Error")
-            session.connected = False
-            disconnect_button.set_sensitive(False)
-            self.open_tabs.pop(session.id, None)
-            self.toast_label.set_label(f"No se pudo iniciar ssh para {server.name}")
+            session.status_label.set_label("Error")
+            self.mark_session_for_reconnect(session, server, f"No se pudo iniciar ssh para {server.name}")
             return
 
         session.child_pid = child_pid
         session.timeout_id = GLib.timeout_add_seconds(1, self.update_session_timer, session)
         terminal.connect("child-exited", self.on_terminal_exited, server, session)
         self.record_connection(server.id)
-        status_label.set_label(f"{server.name} · PID {child_pid}")
+        session.status_label.set_label(f"{server.name} · PID {child_pid}")
         self.toast_label.set_label(f"Sesion abierta: {session.title}")
+
+    def mark_session_for_reconnect(self, session: TerminalSession, server: Server, toast: str) -> None:
+        session.connected = False
+        session.pending_reconnect = True
+        session.disconnect_button.set_sensitive(False)
+        self.toast_label.set_label(toast)
+        session.terminal.feed(f"\r\n\x1b[38;5;88m{self.t('reconnect_prompt')}\x1b[0m\r\n".encode())
+        label = session.tab_label.get_first_child()
+        if isinstance(label, Gtk.Label):
+            label.set_label(f"{session.title} (error)")
+
+    def reconnect_session(self, session: TerminalSession) -> None:
+        if not session.pending_reconnect or session.server_id is None:
+            return
+        server = self.find_server(session.server_id)
+        if server is None:
+            session.pending_reconnect = False
+            self.toast_label.set_label("No se encontro el servidor para reconectar")
+            return
+        session.pending_reconnect = False
+        self.close_tab(session.id, session.page, disconnect=False)
+        self.open_terminal_tab(server)
+
+    def child_status_successful(self, status: int) -> bool:
+        if status == 0:
+            return True
+        try:
+            return os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+        except ValueError:
+            return False
 
     def has_known_host_key(self, host: str, port: int) -> bool:
         ssh_keygen = GLib.find_program_in_path("ssh-keygen")
@@ -1835,6 +1881,10 @@ class TermiaWindow(Gtk.ApplicationWindow):
         stats.keystrokes += 1
         self.run_keystrokes += 1
         enter_keys = {Gdk.KEY_Return, Gdk.KEY_KP_Enter, getattr(Gdk, "KEY_ISO_Enter", Gdk.KEY_Return)}
+        if keyval in enter_keys and session.pending_reconnect:
+            self.schedule_statistics_save()
+            self.reconnect_session(session)
+            return True
         if keyval in enter_keys:
             session.commands += 1
             stats.commands += 1
@@ -2207,16 +2257,25 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.save_statistics_now()
         session.connected = False
         session.disconnect_button.set_sensitive(False)
-        self.open_tabs.pop(session.id, None)
         if session.disconnect_requested:
+            self.open_tabs.pop(session.id, None)
             session.status_label.set_label(f"Desconectada: {session.title}")
             self.toast_label.set_label(f"Sesion desconectada: {session.title}")
             return
-        session.status_label.set_label(f"Cerrada: {session.title}")
-        label = session.tab_label.get_first_child()
-        if isinstance(label, Gtk.Label):
-            label.set_label(f"{session.title} (cerrada)")
-        self.toast_label.set_label(f"Sesion cerrada: {server.name}")
+        if self.child_status_successful(_status):
+            if self.store.data.app.close_tab_on_ssh_exit:
+                self.close_tab(session.id, session.page, disconnect=False)
+                self.toast_label.set_label(f"Sesion cerrada: {server.name}")
+                return
+            self.open_tabs.pop(session.id, None)
+            session.status_label.set_label(f"Cerrada: {session.title}")
+            label = session.tab_label.get_first_child()
+            if isinstance(label, Gtk.Label):
+                label.set_label(f"{session.title} (cerrada)")
+            self.toast_label.set_label(f"Sesion cerrada: {server.name}")
+            return
+        session.status_label.set_label(f"Error: {session.title}")
+        self.mark_session_for_reconnect(session, server, f"Fallo de conexion: {server.name}")
 
     def on_request_close_tab(self, _button: Gtk.Button, session_id: str, page: Gtk.Widget) -> None:
         session = self.open_tabs.get(session_id)
@@ -2467,6 +2526,9 @@ class TermiaWindow(Gtk.ApplicationWindow):
         close_tab_on_disconnect = Gtk.CheckButton(label=self.t("close_tab_on_disconnect"))
         close_tab_on_disconnect.set_active(self.store.data.app.close_tab_on_disconnect)
         close_tab_on_disconnect.set_halign(Gtk.Align.START)
+        close_tab_on_ssh_exit = Gtk.CheckButton(label=self.t("close_tab_on_ssh_exit"))
+        close_tab_on_ssh_exit.set_active(self.store.data.app.close_tab_on_ssh_exit)
+        close_tab_on_ssh_exit.set_halign(Gtk.Align.START)
         confirm_disconnect = Gtk.CheckButton(label=self.t("confirm_disconnect"))
         confirm_disconnect.set_active(self.store.data.app.confirm_disconnect)
         confirm_disconnect.set_halign(Gtk.Align.START)
@@ -2488,6 +2550,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
             (self.t("language"), language_combo),
             (self.t("terminal"), terminal_button),
             ("", close_tab_on_disconnect),
+            ("", close_tab_on_ssh_exit),
             ("", confirm_disconnect),
             ("", confirm_close_app),
             ("", sudo_password_shortcut),
@@ -2503,7 +2566,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         dialog.get_content_area().append(grid)
         dialog.connect(
             "response", self.on_app_preferences_response, theme_combo, language_combo,
-            close_tab_on_disconnect, confirm_disconnect, confirm_close_app,
+            close_tab_on_disconnect, close_tab_on_ssh_exit, confirm_disconnect, confirm_close_app,
             sudo_password_shortcut, sudo_password_enter
         )
         dialog.present()
@@ -2515,6 +2578,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         theme_combo: Gtk.ComboBoxText,
         language_combo: Gtk.ComboBoxText,
         close_tab_on_disconnect: Gtk.CheckButton,
+        close_tab_on_ssh_exit: Gtk.CheckButton,
         confirm_disconnect: Gtk.CheckButton,
         confirm_close_app: Gtk.CheckButton,
         sudo_password_shortcut: Gtk.CheckButton,
@@ -2530,6 +2594,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
                 confirm_close_app.get_active(),
                 sudo_password_shortcut.get_active(),
                 sudo_password_enter.get_active(),
+                close_tab_on_ssh_exit.get_active(),
             )
             self.apply_app_theme()
             if previous_language != self.store.data.app.language:
