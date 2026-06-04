@@ -2616,10 +2616,15 @@ class TermiaWindow(Gtk.ApplicationWindow):
 
         grid = Gtk.Grid(column_spacing=12, row_spacing=12)
 
-        font_button = Gtk.FontButton()
-        font_button.set_font_desc(Pango.FontDescription(f"{settings.font_family} {settings.font_size}"))
-        font_button.set_use_font(True)
-        font_button.set_use_size(True)
+        font_combo = Gtk.ComboBoxText()
+        font_families = self.terminal_font_families()
+        for font_family in font_families:
+            font_combo.append_text(font_family)
+        active_font = settings.font_family if settings.font_family in font_families else "Monospace"
+        font_combo.set_active(font_families.index(active_font) if active_font in font_families else 0)
+
+        font_size_spin = Gtk.SpinButton.new_with_range(6, 72, 1)
+        font_size_spin.set_value(settings.font_size)
 
         foreground_button = Gtk.ColorButton()
         foreground_button.set_rgba(parse_color(settings.foreground, "#f2f2f2"))
@@ -2651,7 +2656,8 @@ class TermiaWindow(Gtk.ApplicationWindow):
             palette_box.append(palette_button)
 
         rows: list[tuple[str, Gtk.Widget]] = [
-            (self.t("font_size"), font_button),
+            (self.t("font_size"), font_combo),
+            ("", font_size_spin),
             (self.t("foreground"), foreground_button),
             (self.t("background"), background_button),
             (self.t("palettes"), palette_box),
@@ -2665,30 +2671,37 @@ class TermiaWindow(Gtk.ApplicationWindow):
         content.append(grid)
         content.append(preview)
 
-        self.update_terminal_preview(preview, font_button, foreground_button, background_button)
-        font_button.connect(
-            "notify::font",
+        self.update_terminal_preview(preview, font_combo, font_size_spin, foreground_button, background_button)
+        font_combo.connect(
+            "changed",
             lambda *_args: self.update_terminal_preview(
-                preview, font_button, foreground_button, background_button
+                preview, font_combo, font_size_spin, foreground_button, background_button
+            ),
+        )
+        font_size_spin.connect(
+            "value-changed",
+            lambda *_args: self.update_terminal_preview(
+                preview, font_combo, font_size_spin, foreground_button, background_button
             ),
         )
         foreground_button.connect(
             "notify::rgba",
             lambda *_args: self.update_terminal_preview(
-                preview, font_button, foreground_button, background_button
+                preview, font_combo, font_size_spin, foreground_button, background_button
             ),
         )
         background_button.connect(
             "notify::rgba",
             lambda *_args: self.update_terminal_preview(
-                preview, font_button, foreground_button, background_button
+                preview, font_combo, font_size_spin, foreground_button, background_button
             ),
         )
 
         dialog.connect(
             "response",
             self.on_terminal_settings_response,
-            font_button,
+            font_combo,
+            font_size_spin,
             foreground_button,
             background_button,
         )
@@ -2705,32 +2718,35 @@ class TermiaWindow(Gtk.ApplicationWindow):
         foreground_button.set_rgba(parse_color(foreground, "#f2f2f2"))
         background_button.set_rgba(parse_color(background, "#101010"))
 
-    def font_description_from_button(self, font_button: Gtk.FontButton) -> Pango.FontDescription:
-        font = font_button.get_font_desc()
-        if font is None:
-            font = Pango.FontDescription(font_button.get_font() or "Monospace 11")
-        return font
+    def terminal_font_families(self) -> list[str]:
+        families = [
+            family.get_name()
+            for family in self.get_pango_context().list_families()
+            if family.is_monospace()
+        ]
+        names = sorted(set(families), key=str.lower)
+        if "Monospace" not in names:
+            names.insert(0, "Monospace")
+        return names or ["Monospace"]
 
-    def font_size_from_description(self, font: Pango.FontDescription, fallback: int) -> int:
-        size = font.get_size()
-        if size <= 0:
-            return fallback
-        return max(6, min(size // Pango.SCALE, 72))
+    def selected_terminal_font_family(self, font_combo: Gtk.ComboBoxText) -> str:
+        return font_combo.get_active_text() or "Monospace"
 
     def update_terminal_preview(
         self,
         preview: Gtk.Label,
-        font_button: Gtk.FontButton,
+        font_combo: Gtk.ComboBoxText,
+        font_size_spin: Gtk.SpinButton,
         foreground_button: Gtk.ColorButton,
         background_button: Gtk.ColorButton,
     ) -> None:
-        font = self.font_description_from_button(font_button)
-        font_size = self.font_size_from_description(font, self.store.data.terminal.font_size)
+        font_family = self.selected_terminal_font_family(font_combo)
+        font_size = int(font_size_spin.get_value())
         foreground = foreground_button.get_rgba().to_string()
         background = background_button.get_rgba().to_string()
         css = (
             ".terminal-preview {"
-            f"font-family: '{font.get_family() or 'Monospace'}';"
+            f"font-family: '{font_family}';"
             f"font-size: {font_size}pt;"
             f"color: {foreground};"
             f"background: {background};"
@@ -2749,15 +2765,15 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self,
         dialog: Gtk.Dialog,
         response: Gtk.ResponseType,
-        font_button: Gtk.FontButton,
+        font_combo: Gtk.ComboBoxText,
+        font_size_spin: Gtk.SpinButton,
         foreground_button: Gtk.ColorButton,
         background_button: Gtk.ColorButton,
     ) -> None:
         if response == Gtk.ResponseType.OK:
-            font = self.font_description_from_button(font_button)
             self.store.update_terminal_settings(
-                font.get_family() or "Monospace",
-                self.font_size_from_description(font, self.store.data.terminal.font_size),
+                self.selected_terminal_font_family(font_combo),
+                int(font_size_spin.get_value()),
                 foreground_button.get_rgba().to_string(),
                 background_button.get_rgba().to_string(),
             )
