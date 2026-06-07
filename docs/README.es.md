@@ -12,16 +12,28 @@ Documentación en catalán: [README.ca.md](README.ca.md)
 - Guardar servidores con nombre, host o IP, usuario, puerto, contraseña y ruta de
   clave privada.
 - Filtrar servidores y abrir varias sesiones al mismo host en pestañas.
-- Reordenar pestañas arrastrándolas y mover una pestaña a una ventana independiente.
+- Usar pestañas compactas, reordenarlas arrastrándolas y mover una pestaña a una ventana independiente.
 - Abrir terminales locales embebidas.
 - Guardar estadísticas locales agregadas de conexiones, comandos, pulsaciones y duración.
-- Mostrar estadísticas por terminal y cerrar opcionalmente la pestaña al desconectar.
+- Mostrar estadísticas por sesión y cerrar opcionalmente la pestaña al desconectar.
+- Mostrar u ocultar globalmente la barra de estado de sesión, ocultarla por sesión y restaurarla desde el menú contextual del terminal.
 - Configurar confirmaciones para desconectar sesiones y cerrar Termia.
 - Enviar opcionalmente la contraseña SSH guardada a un terminal remoto con `Super+Shift+P`, con o sin `Enter`.
-- Configurar fuente, tamaño, colores y tema del terminal.
+- Configurar por separado opciones generales, fuente y colores del terminal VTE, y el prompt PS1.
+- Personalizar el color del prompt, usar temas predefinidos, añadir hora o fecha y previsualizar el resultado antes de guardar.
 - Usar la interfaz en castellano, catalán o inglés. El idioma inicial sigue el locale del sistema cuando está soportado.
 - Importar y exportar configuraciones de Termia.
 - Importar conexiones y grupos anidados básicos desde YAML de Asbru.
+
+## Notas de uso
+
+El menú `Configuración` se divide en `General`, `Terminal` y `Prompt`:
+
+- `General` controla tema, idioma, confirmaciones, comportamiento al iniciar, atajos de contraseña y barra de estado de sesión.
+- `Terminal` controla la fuente, tamaño, colores y paletas del terminal VTE embebido.
+- `Prompt` controla la configuración opcional de PS1, color del prompt, temas predefinidos y prefijo de hora o fecha. La previsualización muestra el resultado antes de guardar.
+
+Cada sesión puede mostrar una barra de estado con estado, PID, tiempo transcurrido, botón compacto para ocultarla y desconexión. El botón de la cabecera junto al icono de la barra lateral oculta o muestra las barras de estado de todas las sesiones. Si ocultas la barra de una sesión, puedes recuperarla con botón derecho dentro del terminal y `Mostrar barra de estado de la sesión`.
 
 ## Entorno probado
 

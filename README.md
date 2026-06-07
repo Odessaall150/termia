@@ -12,16 +12,28 @@ Catalan documentation: [docs/README.ca.md](docs/README.ca.md)
 - Store SSH hosts with a display name, host name or IP, user, port, password,
   and private key path.
 - Filter servers and open multiple tabbed sessions to the same host.
-- Reorder tabs by dragging them and move a tab to a separate window.
+- Use compact, reorderable tabs and move a tab to a separate window.
 - Open embedded local terminal tabs.
 - Track aggregate connection, command, keystroke, and session-duration statistics locally.
-- Show per-terminal statistics and optionally close tabs after disconnecting.
+- Show per-session statistics and optionally close tabs after disconnecting.
+- Show or hide the session status bar globally, hide it per session, and restore it from the terminal context menu.
 - Configure confirmation prompts for disconnecting sessions and closing Termia.
 - Optionally send the saved SSH password to a remote terminal with `Super+Shift+P`, with or without `Enter`.
-- Configure terminal font, size, foreground color, background color, and theme.
+- Configure general options, VTE terminal font/colors, and PS1 prompt settings separately.
+- Customize the prompt color, choose presets, add time/date prefixes, and preview the result before saving.
 - Use the interface in English, Spanish, or Catalan. The initial language follows the system locale when supported.
 - Import and export Termia configuration files.
 - Import basic connection and nested group data from Asbru YAML files.
+
+## Usage notes
+
+The `Configuration` menu is split into `General`, `Terminal`, and `Prompt`:
+
+- `General` controls the application theme, language, confirmations, startup behavior, password shortcut behavior, and the session status bar.
+- `Terminal` controls the embedded VTE terminal font, size, foreground/background colors, and color palettes.
+- `Prompt` controls the optional PS1 override, prompt color, presets, and time/date prefix. The preview shows the resulting prompt before saving.
+
+Each session can show a status bar with its state, PID, elapsed time, a compact hide button, and disconnect. The header button next to the sidebar toggle hides or shows status bars for all sessions. If a session status bar is hidden, right-click inside the terminal and choose `Show session status bar` to restore it.
 
 ## Tested environment
 
