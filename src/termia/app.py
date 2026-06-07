@@ -5,6 +5,7 @@ import json
 import locale
 import os
 import signal
+import shlex
 import subprocess
 import time
 
@@ -39,6 +40,13 @@ TERMINAL_PALETTES = {
     "Tango": ("#eeeeec", "#2e3436"),
     "Claro": ("#2e3436", "#f6f5f4"),
 }
+PROMPT_PRESETS = {
+    "Verde": (r"\u@\h:\w\$ ", "#8ae234"),
+    "Azul": (r"\u@\h:\w\$ ", "#729fcf"),
+    "Ambar": (r"\u@\h:\w\$ ", "#fce94f"),
+    "Rojo": (r"\u@\h \W \$ ", "#ef2929"),
+    "Blanco": (r"\w \$ ", "#eeeeec"),
+}
 APP_THEMES = {"system": "Sistema", "light": "Claro", "dark": "Oscuro"}
 LANGUAGES = {"es": "Castellano", "ca": "Català", "en": "English"}
 
@@ -55,7 +63,7 @@ def detect_system_language() -> str:
 TRANSLATIONS = {
     "es": {
         "servers": "Servidores", "new_group": "Nuevo grupo", "new_server": "Nuevo servidor",
-        "terminal": "Terminal", "preferences": "Preferencias", "filter_servers": "Filtrar servidores",
+        "terminal": "Terminal", "prompt": "Prompt", "general": "General", "preferences": "Preferencias", "filter_servers": "Filtrar servidores",
         "connect": "Conectar", "edit_server": "Editar servidor", "delete_server": "Eliminar servidor", "clone_connection": "Clonar conexión",
         "edit_group": "Editar grupo", "delete_group": "Eliminar grupo", "no_group": "Sin grupo",
         "parent_group": "Grupo padre", "no_parent_group": "Sin grupo padre",
@@ -75,13 +83,14 @@ TRANSLATIONS = {
         "theme": "Tema", "language": "Idioma", "restart_language": "El idioma se aplicará al reiniciar la aplicación.",
         "close_tab": "Cerrar pestaña", "disconnect": "Desconectar", "connecting": "Conectando",
         "close_tab_on_disconnect": "Cerrar la pestaña al desconectar una sesión",
+        "show_session_status_bar": "Mostrar barra de estado de la sesión", "toggle_session_status_bars": "Mostrar u ocultar barras de estado", "hide_status_bar": "Ocultar",
         "confirm_disconnect": "Confirmar para desconectar", "confirm_close_app": "Confirmar para cerrar Termia",
         "sudo_password_shortcut": "Enviar contraseña con Super+Shift+P",
         "sudo_password_enter": "Enviar contraseña y pulsar Enter",
         "sudo_password_sent": "Contraseña guardada enviada a la terminal",
         "sudo_password_unavailable": "Esta terminal no tiene una contraseña guardada",
         "close_app": "Cerrar Termia", "close_app_confirm": "¿Quieres cerrar Termia?",
-        "font_size": "Fuente y tamaño", "terminal_font_size_changed": "Tamaño de fuente del terminal: {size}", "foreground": "Foreground", "background": "Background", "palettes": "Paletas",
+        "font_size": "Fuente y tamaño", "custom_prompt": "Personalizar prompt", "prompt_template": "Plantilla PS1", "prompt_color": "Color del prompt", "prompt_presets": "Temas de prompt", "prompt_datetime": "Fecha y hora", "prompt_datetime_none": "Sin fecha/hora", "prompt_datetime_time": "Hora", "prompt_datetime_date": "Fecha", "prompt_datetime_both": "Fecha y hora", "prompt_settings_saved": "Configuración de prompt guardada", "terminal_settings_saved": "Preferencias de terminal guardadas", "terminal_font_size_changed": "Tamaño de fuente del terminal: {size}", "foreground": "Foreground", "background": "Background", "palettes": "Paletas",
         "configuration": "Configuración", "connections_file": "Fichero de conexiones", "export_config": "Exportar configuración", "import_config": "Importar configuración",
         "summary": "{groups} grupos · {subgroups} subgrupos · {servers} servidores",
         "import_asbru": "Importar configuración de Ásbrú", "clear_config": "Eliminar toda la configuración", "configure_terminal": "Configurar terminal", "local_terminal": "Terminal local",
@@ -96,23 +105,25 @@ TRANSLATIONS = {
             "Termia es un gestor de conexiones SSH con terminales embebidas.\n\n"
             "Características principales:\n"
             "- Organiza servidores en grupos y subgrupos.\n"
-            "- Crea, edita, elimina y filtra conexiones SSH.\n"
-            "- Abre varias conexiones al mismo servidor en pestañas independientes.\n"
-            "- Abre terminales locales y permite renombrar las pestañas.\n"
-            "- Muestra el estado, el PID y el tiempo de conexión de cada sesión.\n"
-            "- Guarda estadísticas locales agregadas y muestra estadísticas por terminal.\n"
+            "- Crea, edita, elimina, clona y filtra conexiones SSH.\n"
+            "- Abre conexiones y terminales locales en pestañas compactas, reordenables y desacoplables.\n"
+            "- Muestra estadísticas locales agregadas y estadísticas por sesión.\n"
+            "- La barra de estado de sesión muestra estado, PID, tiempo y desconexión; puede ocultarse por sesión o globalmente.\n"
             "- Permite enviar opcionalmente la contraseña guardada con Super+Shift+P.\n"
-            "- Configura la fuente, el tamaño y los colores del terminal.\n"
+            "- Configura por separado opciones generales, terminal VTE y prompt PS1.\n"
+            "- El prompt permite color, temas predefinidos, hora, fecha y previsualización.\n"
             "- Importa y exporta configuraciones, incluida la importación básica desde Ásbrú.\n\n"
             "Uso rápido:\n"
             "Utiliza los iconos del panel lateral para crear grupos o servidores. Haz doble clic "
-            "sobre un servidor para conectar y utiliza el botón derecho para ver las acciones disponibles."
+            "sobre un servidor para conectar. Usa el botón derecho en servidores, pestañas o terminales "
+            "para ver acciones contextuales como duplicar, desconectar, copiar, pegar, mostrar la barra "
+            "de estado o ver estadísticas."
         ),
         "about_content": "Gestor de conexiones SSH con terminales embebidas",
     },
     "ca": {
         "servers": "Servidors", "new_group": "Nou grup", "new_server": "Nou servidor",
-        "terminal": "Terminal", "preferences": "Preferències", "filter_servers": "Filtrar servidors",
+        "terminal": "Terminal", "prompt": "Prompt", "general": "General", "preferences": "Preferències", "filter_servers": "Filtrar servidors",
         "connect": "Connectar", "edit_server": "Editar servidor", "delete_server": "Eliminar servidor", "clone_connection": "Clonar connexió",
         "edit_group": "Editar grup", "delete_group": "Eliminar grup", "no_group": "Sense grup",
         "parent_group": "Grup pare", "no_parent_group": "Sense grup pare",
@@ -132,13 +143,14 @@ TRANSLATIONS = {
         "theme": "Tema", "language": "Idioma", "restart_language": "L'idioma s'aplicarà en reiniciar l'aplicació.",
         "close_tab": "Tancar pestanya", "disconnect": "Desconnectar", "connecting": "Connectant",
         "close_tab_on_disconnect": "Tancar la pestanya en desconnectar una sessió",
+        "show_session_status_bar": "Mostrar barra d'estat de la sessió", "toggle_session_status_bars": "Mostrar o amagar barres d'estat", "hide_status_bar": "Amagar",
         "confirm_disconnect": "Confirmar per desconnectar", "confirm_close_app": "Confirmar per tancar Termia",
         "sudo_password_shortcut": "Enviar contrasenya amb Super+Shift+P",
         "sudo_password_enter": "Enviar contrasenya i prémer Enter",
         "sudo_password_sent": "Contrasenya desada enviada al terminal",
         "sudo_password_unavailable": "Aquest terminal no té cap contrasenya desada",
         "close_app": "Tancar Termia", "close_app_confirm": "Vols tancar Termia?",
-        "font_size": "Tipus de lletra i mida", "terminal_font_size_changed": "Mida de la lletra del terminal: {size}", "foreground": "Primer pla", "background": "Fons", "palettes": "Paletes",
+        "font_size": "Tipus de lletra i mida", "custom_prompt": "Personalitzar prompt", "prompt_template": "Plantilla PS1", "prompt_color": "Color del prompt", "prompt_presets": "Temes de prompt", "prompt_datetime": "Data i hora", "prompt_datetime_none": "Sense data/hora", "prompt_datetime_time": "Hora", "prompt_datetime_date": "Data", "prompt_datetime_both": "Data i hora", "prompt_settings_saved": "Configuració del prompt desada", "terminal_settings_saved": "Preferències del terminal desades", "terminal_font_size_changed": "Mida de la lletra del terminal: {size}", "foreground": "Primer pla", "background": "Fons", "palettes": "Paletes",
         "configuration": "Configuració", "connections_file": "Fitxer de connexions", "export_config": "Exportar configuració", "import_config": "Importar configuració",
         "summary": "{groups} grups · {subgroups} subgrups · {servers} servidors",
         "import_asbru": "Importar configuració d'Ásbrú", "clear_config": "Eliminar tota la configuració", "configure_terminal": "Configurar terminal", "local_terminal": "Terminal local",
@@ -153,23 +165,25 @@ TRANSLATIONS = {
             "Termia és un gestor de connexions SSH amb terminals incrustats.\n\n"
             "Característiques principals:\n"
             "- Organitza servidors en grups i subgrups.\n"
-            "- Crea, edita, elimina i filtra connexions SSH.\n"
-            "- Obre diverses connexions al mateix servidor en pestanyes independents.\n"
-            "- Obre terminals locals i permet canviar el nom de les pestanyes.\n"
-            "- Mostra l'estat, el PID i el temps de connexió de cada sessió.\n"
-            "- Desa estadístiques locals agregades i mostra estadístiques per terminal.\n"
+            "- Crea, edita, elimina, clona i filtra connexions SSH.\n"
+            "- Obre connexions i terminals locals en pestanyes compactes, reordenables i desacoblables.\n"
+            "- Mostra estadístiques locals agregades i estadístiques per sessió.\n"
+            "- La barra d'estat de sessió mostra estat, PID, temps i desconnexió; es pot amagar per sessió o globalment.\n"
             "- Permet enviar opcionalment la contrasenya desada amb Super+Shift+P.\n"
-            "- Configura el tipus de lletra, la mida i els colors del terminal.\n"
+            "- Configura per separat opcions generals, terminal VTE i prompt PS1.\n"
+            "- El prompt permet color, temes predefinits, hora, data i previsualització.\n"
             "- Importa i exporta configuracions, inclosa la importació bàsica des d'Ásbrú.\n\n"
             "Ús ràpid:\n"
             "Utilitza les icones del panell lateral per crear grups o servidors. Fes doble clic "
-            "sobre un servidor per connectar i utilitza el botó dret per veure les accions disponibles."
+            "sobre un servidor per connectar. Utilitza el botó dret en servidors, pestanyes o terminals "
+            "per veure accions contextuals com duplicar, desconnectar, copiar, enganxar, mostrar la barra "
+            "d'estat o veure estadístiques."
         ),
         "about_content": "Gestor de connexions SSH amb terminals incrustats",
     },
     "en": {
         "servers": "Servers", "new_group": "New group", "new_server": "New server",
-        "terminal": "Terminal", "preferences": "Preferences", "filter_servers": "Filter servers",
+        "terminal": "Terminal", "prompt": "Prompt", "general": "General", "preferences": "Preferences", "filter_servers": "Filter servers",
         "connect": "Connect", "edit_server": "Edit server", "delete_server": "Delete server", "clone_connection": "Clone connection",
         "edit_group": "Edit group", "delete_group": "Delete group", "no_group": "No group",
         "parent_group": "Parent group", "no_parent_group": "No parent group",
@@ -189,13 +203,14 @@ TRANSLATIONS = {
         "theme": "Theme", "language": "Language", "restart_language": "The language will apply after restarting the application.",
         "close_tab": "Close tab", "disconnect": "Disconnect", "connecting": "Connecting",
         "close_tab_on_disconnect": "Close the tab when disconnecting a session",
+        "show_session_status_bar": "Show session status bar", "toggle_session_status_bars": "Show or hide status bars", "hide_status_bar": "Hide",
         "confirm_disconnect": "Confirm before disconnecting", "confirm_close_app": "Confirm before closing Termia",
         "sudo_password_shortcut": "Send password with Super+Shift+P",
         "sudo_password_enter": "Send password and press Enter",
         "sudo_password_sent": "Saved password sent to the terminal",
         "sudo_password_unavailable": "This terminal does not have a saved password",
         "close_app": "Close Termia", "close_app_confirm": "Do you want to close Termia?",
-        "font_size": "Font and size", "terminal_font_size_changed": "Terminal font size: {size}", "foreground": "Foreground", "background": "Background", "palettes": "Palettes",
+        "font_size": "Font and size", "custom_prompt": "Customize prompt", "prompt_template": "PS1 template", "prompt_color": "Prompt color", "prompt_presets": "Prompt themes", "prompt_datetime": "Date and time", "prompt_datetime_none": "No date/time", "prompt_datetime_time": "Time", "prompt_datetime_date": "Date", "prompt_datetime_both": "Date and time", "prompt_settings_saved": "Prompt settings saved", "terminal_settings_saved": "Terminal preferences saved", "terminal_font_size_changed": "Terminal font size: {size}", "foreground": "Foreground", "background": "Background", "palettes": "Palettes",
         "configuration": "Configuration", "connections_file": "Connections file", "export_config": "Export configuration", "import_config": "Import configuration",
         "summary": "{groups} groups · {subgroups} subgroups · {servers} servers",
         "import_asbru": "Import Ásbrú configuration", "clear_config": "Delete all configuration", "configure_terminal": "Configure terminal", "local_terminal": "Local terminal",
@@ -210,17 +225,18 @@ TRANSLATIONS = {
             "Termia is an SSH connection manager with embedded terminals.\n\n"
             "Main features:\n"
             "- Organize servers into groups and subgroups.\n"
-            "- Create, edit, delete and filter SSH connections.\n"
-            "- Open multiple connections to the same server in independent tabs.\n"
-            "- Open local terminals and rename tabs.\n"
-            "- View the status, PID and connection time for each session.\n"
-            "- Store aggregate local statistics and view per-terminal statistics.\n"
+            "- Create, edit, delete, clone and filter SSH connections.\n"
+            "- Open connections and local terminals in compact, reorderable and detachable tabs.\n"
+            "- View aggregate local statistics and per-session statistics.\n"
+            "- The session status bar shows status, PID, duration and disconnect controls; it can be hidden per session or globally.\n"
             "- Optionally send the saved password with Super+Shift+P.\n"
-            "- Configure the terminal font, size and colors.\n"
+            "- Configure general options, the VTE terminal and the PS1 prompt separately.\n"
+            "- The prompt supports color, presets, time, date and live preview.\n"
             "- Import and export configurations, including basic imports from Ásbrú.\n\n"
             "Quick start:\n"
-            "Use the sidebar icons to create groups or servers. Double-click a server to connect "
-            "and use the right mouse button to view the available actions."
+            "Use the sidebar icons to create groups or servers. Double-click a server to connect. "
+            "Right-click servers, tabs or terminals to access contextual actions such as duplicate, "
+            "disconnect, copy, paste, show the status bar or view statistics."
         ),
         "about_content": "SSH connection manager with embedded terminals",
     },
@@ -261,6 +277,9 @@ class TerminalSettings:
     background: str = "#002b36"
     ls_colors: str = DEFAULT_LS_COLORS
     ansi_palette: list[str] = field(default_factory=lambda: DEFAULT_ANSI_PALETTE.copy())
+    prompt_enabled: bool = False
+    prompt_template: str = r"\u@\h:\w\$ "
+    prompt_color: str = "#8ae234"
 
 
 @dataclass
@@ -270,6 +289,7 @@ class AppSettings:
     close_tab_on_disconnect: bool = False
     close_tab_on_ssh_exit: bool = False
     open_local_terminal_on_startup: bool = True
+    show_session_status_bar: bool = True
     confirm_disconnect: bool = True
     confirm_close_app: bool = False
     sudo_password_shortcut: bool = False
@@ -457,14 +477,36 @@ class ConnectionStore:
         foreground: str,
         background: str,
         ls_colors: str | None = None,
+        prompt_enabled: bool | None = None,
+        prompt_template: str | None = None,
+        prompt_color: str | None = None,
     ) -> None:
+        current = self.data.terminal
         self.data.terminal = TerminalSettings(
             font_family=font_family.strip() or "Monospace",
             font_size=max(6, min(font_size, 72)),
             foreground=foreground.strip() or "#f2f2f2",
             background=background.strip() or "#101010",
-            ls_colors=ls_colors if ls_colors is not None else self.data.terminal.ls_colors,
-            ansi_palette=self.data.terminal.ansi_palette or DEFAULT_ANSI_PALETTE.copy(),
+            ls_colors=ls_colors if ls_colors is not None else current.ls_colors,
+            ansi_palette=current.ansi_palette or DEFAULT_ANSI_PALETTE.copy(),
+            prompt_enabled=current.prompt_enabled if prompt_enabled is None else prompt_enabled,
+            prompt_template=(prompt_template if prompt_template is not None else current.prompt_template) if (prompt_template if prompt_template is not None else current.prompt_template).strip() else r"\u@\h:\w\$ ",
+            prompt_color=(prompt_color if prompt_color is not None else current.prompt_color).strip() or "#8ae234",
+        )
+        self.save()
+
+    def update_prompt_settings(self, enabled: bool, template: str, color: str) -> None:
+        current = self.data.terminal
+        self.data.terminal = TerminalSettings(
+            font_family=current.font_family,
+            font_size=current.font_size,
+            foreground=current.foreground,
+            background=current.background,
+            ls_colors=current.ls_colors,
+            ansi_palette=current.ansi_palette or DEFAULT_ANSI_PALETTE.copy(),
+            prompt_enabled=enabled,
+            prompt_template=template if template.strip() else r"\u@\h:\w\$ ",
+            prompt_color=color.strip() or "#8ae234",
         )
         self.save()
 
@@ -472,7 +514,7 @@ class ConnectionStore:
         self, theme: str, language: str, close_tab_on_disconnect: bool,
         confirm_disconnect: bool, confirm_close_app: bool,
         sudo_password_shortcut: bool, sudo_password_enter: bool, close_tab_on_ssh_exit: bool,
-        open_local_terminal_on_startup: bool,
+        open_local_terminal_on_startup: bool, show_session_status_bar: bool,
     ) -> None:
         self.data.app = AppSettings(
             theme=theme if theme in APP_THEMES else "system",
@@ -480,6 +522,7 @@ class ConnectionStore:
             close_tab_on_disconnect=close_tab_on_disconnect,
             close_tab_on_ssh_exit=close_tab_on_ssh_exit,
             open_local_terminal_on_startup=open_local_terminal_on_startup,
+            show_session_status_bar=show_session_status_bar,
             confirm_disconnect=confirm_disconnect,
             confirm_close_app=confirm_close_app,
             sudo_password_shortcut=sudo_password_shortcut,
@@ -508,6 +551,7 @@ class TerminalSession:
     status_label: Gtk.Label
     timer_label: Gtk.Label
     disconnect_button: Gtk.Button
+    status_bar: Gtk.Widget
     started_at: float
     notebook: Gtk.Notebook | None = None
     detached_window: Gtk.Window | None = None
@@ -604,6 +648,14 @@ class TermiaWindow(Gtk.ApplicationWindow):
         provider.load_from_data(
             b".termia-tree-item { border-radius: 4px; } "
             b".termia-server-item { padding-top: 2px; padding-bottom: 2px; } "
+            b".prompt-preset-button { padding: 1px 6px; min-height: 24px; } "
+            b"notebook tab { padding: 0; margin: 0; } "
+            b".termia-tab-label { padding: 0 1px; margin: 0 -1px 0 0; border-radius: 3px; "
+            b"border-left: 1px solid @borders; border-right: 1px solid @borders; "
+            b"background: transparent; } "
+            b".termia-tab-title { font-size: 0.82em; } "
+            b".termia-tab-close { padding: 0; min-width: 14px; min-height: 14px; } "
+            b".termia-status-hide { padding: 0 6px; min-height: 18px; font-size: 0.85em; } "
             b".termia-tree-item.selected { "
             b"background-color: @theme_selected_bg_color; "
             b"color: @theme_selected_fg_color; }"
@@ -620,9 +672,17 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.set_titlebar(header)
 
         toggle_sidebar = Gtk.Button(icon_name="sidebar-hide-symbolic")
+        self.toggle_sidebar_button = toggle_sidebar
         toggle_sidebar.set_tooltip_text(self.t("servers"))
         toggle_sidebar.connect("clicked", self.on_toggle_sidebar)
         header.pack_start(toggle_sidebar)
+
+        toggle_status_bars = Gtk.Button(icon_name="view-fullscreen-symbolic")
+        self.toggle_status_bars_button = toggle_status_bars
+        toggle_status_bars.set_tooltip_text(self.t("toggle_session_status_bars"))
+        toggle_status_bars.connect("clicked", self.on_toggle_session_status_bars)
+        header.pack_start(toggle_status_bars)
+        self.update_session_status_bars_button_icon()
 
         local_terminal_btn = Gtk.Button(label=self.t("local_terminal"))
         local_terminal_btn.connect("clicked", self.on_open_local_terminal)
@@ -641,7 +701,14 @@ class TermiaWindow(Gtk.ApplicationWindow):
         help_btn.connect("clicked", self.on_help)
         header.pack_start(help_btn)
 
-        about_btn = Gtk.Button(label=self.t("about"))
+        about_btn = Gtk.Button()
+        about_btn.set_tooltip_text(self.t("about"))
+        if (APP_DIR / "assets" / "termia.svg").exists():
+            about_image = Gtk.Image.new_from_file(str(APP_DIR / "assets" / "termia.svg"))
+            about_image.set_pixel_size(24)
+            about_btn.set_child(about_image)
+        else:
+            about_btn.set_label(self.t("about"))
         about_btn.connect("clicked", self.on_about)
         header.pack_start(about_btn)
 
@@ -798,10 +865,20 @@ class TermiaWindow(Gtk.ApplicationWindow):
         menu.set_margin_start(6)
         menu.set_margin_end(6)
 
-        preferences = Gtk.Button(label=self.t("preferences"))
-        preferences.set_halign(Gtk.Align.FILL)
-        preferences.connect("clicked", lambda _button: self.run_after_popover_closed(popover, self.on_app_preferences))
-        menu.append(preferences)
+        general = Gtk.Button(label=self.t("general"))
+        general.set_halign(Gtk.Align.FILL)
+        general.connect("clicked", lambda _button: self.run_after_popover_closed(popover, self.on_app_preferences))
+        menu.append(general)
+
+        terminal = Gtk.Button(label=self.t("terminal"))
+        terminal.set_halign(Gtk.Align.FILL)
+        terminal.connect("clicked", lambda _button: self.run_after_popover_closed(popover, self.on_terminal_settings))
+        menu.append(terminal)
+
+        prompt = Gtk.Button(label=self.t("prompt"))
+        prompt.set_halign(Gtk.Align.FILL)
+        prompt.connect("clicked", lambda _button: self.run_after_popover_closed(popover, self.on_prompt_settings))
+        menu.append(prompt)
 
         connections_file = Gtk.MenuButton(label=self.t("connections_file"))
         connections_file.set_halign(Gtk.Align.FILL)
@@ -884,17 +961,22 @@ class TermiaWindow(Gtk.ApplicationWindow):
         return popover
 
     def on_toggle_sidebar(self, _button: Gtk.Button) -> None:
-        if self.sidebar_visible:
+        self.set_sidebar_visible(not self.sidebar_visible)
+
+    def set_sidebar_visible(self, visible: bool) -> None:
+        if visible == self.sidebar_visible:
+            return
+        if visible:
+            self.sidebar.set_visible(True)
+            self.body.set_position(self.sidebar_width)
+            self.sidebar_visible = True
+            self.toggle_sidebar_button.set_icon_name("sidebar-hide-symbolic")
+        else:
             self.sidebar_width = max(self.body.get_position(), 180)
             self.sidebar.set_visible(False)
             self.body.set_position(0)
             self.sidebar_visible = False
-            _button.set_icon_name("sidebar-show-symbolic")
-        else:
-            self.sidebar.set_visible(True)
-            self.body.set_position(self.sidebar_width)
-            self.sidebar_visible = True
-            _button.set_icon_name("sidebar-hide-symbolic")
+            self.toggle_sidebar_button.set_icon_name("sidebar-show-symbolic")
 
     def setup_row(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -1574,7 +1656,12 @@ class TermiaWindow(Gtk.ApplicationWindow):
 
     def on_open_local_terminal(self, _button: Gtk.Button) -> None:
         shell = os.environ.get("SHELL") or GLib.find_program_in_path("bash") or "/bin/sh"
-        self.open_process_terminal_tab(self.t("local_terminal"), [shell], None, working_directory=str(Path.home()))
+        command = [shell]
+        if self.store.data.terminal.prompt_enabled:
+            bash_path = GLib.find_program_in_path("bash")
+            if bash_path is not None:
+                command = self.build_local_prompt_shell_command(bash_path)
+        self.open_process_terminal_tab(self.t("local_terminal"), command, None, working_directory=str(Path.home()))
 
     def open_process_terminal_tab(
         self,
@@ -1585,8 +1672,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         working_directory: str | None = None,
     ) -> None:
         session_id = str(uuid4())
-        self.session_sequence += 1
-        tab_title = f"{title} #{self.session_sequence}"
+        tab_title = title
         terminal = Vte.Terminal()
         terminal.set_hexpand(True)
         terminal.set_vexpand(True)
@@ -1599,10 +1685,15 @@ class TermiaWindow(Gtk.ApplicationWindow):
         status_label.set_xalign(0)
         status_label.add_css_class("dim-label")
         timer_label = Gtk.Label(label="00:00:00")
+        focus_button = Gtk.Button(label=self.t("hide_status_bar"))
+        focus_button.add_css_class("termia-status-hide")
+        focus_button.set_size_request(-1, 18)
         disconnect_button = Gtk.Button(label=self.t("disconnect"))
         disconnect_button.add_css_class("destructive-action")
         disconnect_button.set_size_request(-1, 22)
+        toolbar.set_visible(self.store.data.app.show_session_status_bar)
         toolbar.append(status_label)
+        toolbar.append(focus_button)
         toolbar.append(Gtk.Box(hexpand=True))
         toolbar.append(timer_label)
         toolbar.append(disconnect_button)
@@ -1623,8 +1714,10 @@ class TermiaWindow(Gtk.ApplicationWindow):
         session = TerminalSession(
             id=session_id, server_id=server_id, title=tab_title, terminal=terminal, page=page,
             tab_label=tab_label, status_label=status_label, timer_label=timer_label,
-            disconnect_button=disconnect_button, started_at=time.monotonic(), notebook=self.notebook,
+            disconnect_button=disconnect_button, status_bar=toolbar,
+            started_at=time.monotonic(), notebook=self.notebook,
         )
+        focus_button.connect("clicked", self.on_hide_session_status_bar, session)
         disconnect_button.connect("clicked", self.on_request_disconnect_session, session)
         self.configure_terminal_interactions(terminal, session)
         self.open_tabs[session_id] = session
@@ -1667,8 +1760,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
 
     def open_terminal_tab(self, server: Server) -> None:
         session_id = str(uuid4())
-        self.session_sequence += 1
-        tab_title = f"{server.name} #{self.session_sequence}"
+        tab_title = server.name
         terminal = Vte.Terminal()
         terminal.set_hexpand(True)
         terminal.set_vexpand(True)
@@ -1686,11 +1778,16 @@ class TermiaWindow(Gtk.ApplicationWindow):
         status_label.set_xalign(0)
         status_label.add_css_class("dim-label")
         timer_label = Gtk.Label(label="00:00:00")
+        focus_button = Gtk.Button(label=self.t("hide_status_bar"))
+        focus_button.add_css_class("termia-status-hide")
+        focus_button.set_size_request(-1, 18)
         disconnect_button = Gtk.Button(label=self.t("disconnect"))
         disconnect_button.add_css_class("destructive-action")
         disconnect_button.set_size_request(-1, 22)
+        toolbar.set_visible(self.store.data.app.show_session_status_bar)
 
         toolbar.append(status_label)
+        toolbar.append(focus_button)
         toolbar.append(Gtk.Box(hexpand=True))
         toolbar.append(timer_label)
         toolbar.append(disconnect_button)
@@ -1719,9 +1816,11 @@ class TermiaWindow(Gtk.ApplicationWindow):
             status_label=status_label,
             timer_label=timer_label,
             disconnect_button=disconnect_button,
+            status_bar=toolbar,
             started_at=time.monotonic(),
             notebook=self.notebook,
         )
+        focus_button.connect("clicked", self.on_hide_session_status_bar, session)
         disconnect_button.connect("clicked", self.on_request_disconnect_session, session)
         self.configure_terminal_interactions(terminal, session)
         self.open_tabs[session_id] = session
@@ -1751,7 +1850,11 @@ class TermiaWindow(Gtk.ApplicationWindow):
         command = [ssh_path, "-p", str(server.port)]
         if server.public_key:
             command.extend(["-i", str(Path(server.public_key).expanduser())])
+        if self.store.data.terminal.prompt_enabled:
+            command.append("-t")
         command.append(ssh_target)
+        if self.store.data.terminal.prompt_enabled:
+            command.append(self.build_remote_prompt_shell_command())
         envv = self.build_terminal_environment(server.password)
         use_sshpass = bool(server.password)
         if server.password and not self.has_known_host_key(server.host, server.port):
@@ -1961,6 +2064,27 @@ class TermiaWindow(Gtk.ApplicationWindow):
                 return
         page.grab_focus()
 
+    def on_toggle_session_status_bars(self, _button: Gtk.Button) -> None:
+        visible = not self.store.data.app.show_session_status_bar
+        self.store.data.app.show_session_status_bar = visible
+        self.store.save()
+        self.apply_session_status_bar_visibility_to_open_tabs()
+        self.update_session_status_bars_button_icon()
+
+    def update_session_status_bars_button_icon(self) -> None:
+        icon_name = "view-fullscreen-symbolic" if self.store.data.app.show_session_status_bar else "view-restore-symbolic"
+        self.toggle_status_bars_button.set_icon_name(icon_name)
+
+    def on_hide_session_status_bar(self, _button: Gtk.Button, session: TerminalSession) -> None:
+        self.set_sidebar_visible(False)
+        session.status_bar.set_visible(False)
+        session.terminal.grab_focus()
+
+    def apply_session_status_bar_visibility_to_open_tabs(self) -> None:
+        visible = self.store.data.app.show_session_status_bar
+        for session in self.open_tabs.values():
+            session.status_bar.set_visible(visible)
+
     def change_terminal_font_size(self, delta: int) -> None:
         settings = self.store.data.terminal
         new_size = max(6, min(settings.font_size + delta, 72))
@@ -2012,12 +2136,21 @@ class TermiaWindow(Gtk.ApplicationWindow):
         menu.set_margin_end(6)
         self.add_context_menu_item(menu, self.t("duplicate_tab"), lambda: self.duplicate_tab(popover, session))
         self.add_context_menu_item(menu, self.t("disconnect"), lambda: self.disconnect_from_terminal_menu(popover, session))
+        if not session.status_bar.get_visible():
+            self.add_context_menu_item(
+                menu, self.t("show_session_status_bar"), lambda: self.show_session_status_bar_from_menu(popover, session)
+            )
         self.add_context_menu_item(menu, self.t("copy"), lambda: self.copy_terminal_selection(popover, terminal))
         self.add_context_menu_item(menu, self.t("paste"), lambda: self.paste_terminal_clipboard(popover, terminal))
         self.add_context_menu_item(menu, self.t("configure_terminal"), lambda: self.configure_terminal_from_menu(popover))
         self.add_context_menu_item(menu, self.t("session_statistics"), lambda: self.show_session_statistics(popover, session))
         popover.set_child(menu)
         popover.popup()
+
+    def show_session_status_bar_from_menu(self, popover: Gtk.Popover, session: TerminalSession) -> None:
+        popover.popdown()
+        session.status_bar.set_visible(True)
+        session.terminal.grab_focus()
 
     def disconnect_from_terminal_menu(self, popover: Gtk.Popover, session: TerminalSession) -> None:
         popover.popdown()
@@ -2066,11 +2199,44 @@ class TermiaWindow(Gtk.ApplicationWindow):
     def build_terminal_environment(self, password: str = "") -> list[str]:
         env = dict(os.environ)
         env["LS_COLORS"] = self.store.data.terminal.ls_colors
+        if self.store.data.terminal.prompt_enabled:
+            env["PS1"] = self.build_prompt_ps1()
         if password:
             env["SSHPASS"] = password
         env.setdefault("COLORTERM", "truecolor")
         env.setdefault("TERM", "xterm-256color")
         return [f"{key}={value}" for key, value in env.items()]
+
+    def rgba_to_hex(self, rgba: Gdk.RGBA) -> str:
+        red = max(0, min(round(rgba.red * 255), 255))
+        green = max(0, min(round(rgba.green * 255), 255))
+        blue = max(0, min(round(rgba.blue * 255), 255))
+        return f"#{red:02x}{green:02x}{blue:02x}"
+
+    def build_prompt_ps1(self) -> str:
+        settings = self.store.data.terminal
+        color = parse_color(settings.prompt_color, "#8ae234")
+        red = max(0, min(round(color.red * 255), 255))
+        green = max(0, min(round(color.green * 255), 255))
+        blue = max(0, min(round(color.blue * 255), 255))
+        template = settings.prompt_template if settings.prompt_template.strip() else r"\u@\h:\w\$ "
+        return f"\\[\\033[38;2;{red};{green};{blue}m\\]{template}\\[\\033[0m\\]"
+
+    def build_prompt_bash_script(self) -> str:
+        quoted_ps1 = shlex.quote(self.build_prompt_ps1())
+        return (
+            f"export TERMIA_PS1={quoted_ps1}; "
+            "exec bash --rcfile <(printf '%s\\n' "
+            "'test -r ~/.bashrc && . ~/.bashrc' "
+            "'PS1=\"$TERMIA_PS1\"' "
+            "'export PS1') -i"
+        )
+
+    def build_local_prompt_shell_command(self, bash_path: str) -> list[str]:
+        return [bash_path, "-lc", self.build_prompt_bash_script()]
+
+    def build_remote_prompt_shell_command(self) -> str:
+        return f"bash -lc {shlex.quote(self.build_prompt_bash_script())}"
 
     def apply_terminal_settings(self, terminal: Vte.Terminal) -> None:
         settings = self.store.data.terminal
@@ -2096,13 +2262,20 @@ class TermiaWindow(Gtk.ApplicationWindow):
         return GLib.SOURCE_CONTINUE
 
     def build_tab_label(self, title: str, session_id: str, page: Gtk.Widget) -> Gtk.Widget:
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        box.add_css_class("termia-tab-label")
         box.set_margin_start(0)
         box.set_margin_end(0)
         label = Gtk.Label(label=title)
+        label.add_css_class("termia-tab-title")
+        label.set_single_line_mode(True)
+        label.set_ellipsize(Pango.EllipsizeMode.END)
+        label.set_width_chars(min(max(len(title), 6), 14))
+        label.set_max_width_chars(14)
         label.set_margin_start(2)
         label.set_margin_end(1)
         close_button = Gtk.Button(icon_name="window-close-symbolic")
+        close_button.add_css_class("termia-tab-close")
         close_button.set_has_frame(False)
         close_button.set_tooltip_text(self.t("close_tab"))
         close_button.connect("clicked", self.on_request_close_tab, session_id, page)
@@ -2531,7 +2704,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         return added_groups, added_servers
 
     def on_app_preferences(self, _button: Gtk.Button) -> None:
-        dialog = Gtk.Dialog(title=self.t("preferences"), transient_for=self, modal=True)
+        dialog = Gtk.Dialog(title=self.t("general"), transient_for=self, modal=True)
         dialog.set_resizable(False)
         dialog.set_default_size(380, -1)
         self.add_dialog_action_buttons(dialog, self.t("save"))
@@ -2552,8 +2725,6 @@ class TermiaWindow(Gtk.ApplicationWindow):
             language_combo.append(language_id, label)
         language_combo.set_active_id(self.store.data.app.language)
 
-        terminal_button = Gtk.Button(label=self.t("configure_terminal"))
-        terminal_button.connect("clicked", self.on_terminal_settings)
         close_tab_on_disconnect = Gtk.CheckButton(label=self.t("close_tab_on_disconnect"))
         close_tab_on_disconnect.set_active(self.store.data.app.close_tab_on_disconnect)
         close_tab_on_disconnect.set_halign(Gtk.Align.START)
@@ -2563,6 +2734,9 @@ class TermiaWindow(Gtk.ApplicationWindow):
         open_local_terminal_on_startup = Gtk.CheckButton(label=self.t("open_local_terminal_on_startup"))
         open_local_terminal_on_startup.set_active(self.store.data.app.open_local_terminal_on_startup)
         open_local_terminal_on_startup.set_halign(Gtk.Align.START)
+        show_session_status_bar = Gtk.CheckButton(label=self.t("show_session_status_bar"))
+        show_session_status_bar.set_active(self.store.data.app.show_session_status_bar)
+        show_session_status_bar.set_halign(Gtk.Align.START)
         confirm_disconnect = Gtk.CheckButton(label=self.t("confirm_disconnect"))
         confirm_disconnect.set_active(self.store.data.app.confirm_disconnect)
         confirm_disconnect.set_halign(Gtk.Align.START)
@@ -2582,10 +2756,10 @@ class TermiaWindow(Gtk.ApplicationWindow):
         rows: list[tuple[str, Gtk.Widget]] = [
             (self.t("theme"), theme_combo),
             (self.t("language"), language_combo),
-            (self.t("terminal"), terminal_button),
             ("", close_tab_on_disconnect),
             ("", close_tab_on_ssh_exit),
             ("", open_local_terminal_on_startup),
+            ("", show_session_status_bar),
             ("", confirm_disconnect),
             ("", confirm_close_app),
             ("", sudo_password_shortcut),
@@ -2602,7 +2776,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         dialog.connect(
             "response", self.on_app_preferences_response, theme_combo, language_combo,
             close_tab_on_disconnect, close_tab_on_ssh_exit, open_local_terminal_on_startup,
-            confirm_disconnect, confirm_close_app,
+            show_session_status_bar, confirm_disconnect, confirm_close_app,
             sudo_password_shortcut, sudo_password_enter
         )
         dialog.present()
@@ -2616,6 +2790,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         close_tab_on_disconnect: Gtk.CheckButton,
         close_tab_on_ssh_exit: Gtk.CheckButton,
         open_local_terminal_on_startup: Gtk.CheckButton,
+        show_session_status_bar: Gtk.CheckButton,
         confirm_disconnect: Gtk.CheckButton,
         confirm_close_app: Gtk.CheckButton,
         sudo_password_shortcut: Gtk.CheckButton,
@@ -2633,8 +2808,11 @@ class TermiaWindow(Gtk.ApplicationWindow):
                 sudo_password_enter.get_active(),
                 close_tab_on_ssh_exit.get_active(),
                 open_local_terminal_on_startup.get_active(),
+                show_session_status_bar.get_active(),
             )
             self.apply_app_theme()
+            self.apply_session_status_bar_visibility_to_open_tabs()
+            self.update_session_status_bars_button_icon()
             if previous_language != self.store.data.app.language:
                 self.toast_label.set_label(self.t("restart_language"))
         dialog.destroy()
@@ -2673,7 +2851,8 @@ class TermiaWindow(Gtk.ApplicationWindow):
         background_button.set_rgba(parse_color(settings.background, "#101010"))
         background_button.set_title("Background")
 
-        preview = Gtk.Label(label="usuario@servidor:~$ ssh ejemplo\nSalida de terminal")
+        preview = Gtk.Label()
+        preview.set_use_markup(True)
         preview.set_xalign(0)
         preview.set_margin_top(10)
         preview.set_margin_bottom(10)
@@ -2713,27 +2892,19 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.update_terminal_preview(preview, font_combo, font_size_spin, foreground_button, background_button)
         font_combo.connect(
             "changed",
-            lambda *_args: self.update_terminal_preview(
-                preview, font_combo, font_size_spin, foreground_button, background_button
-            ),
+            lambda *_args: self.update_terminal_preview(preview, font_combo, font_size_spin, foreground_button, background_button),
         )
         font_size_spin.connect(
             "value-changed",
-            lambda *_args: self.update_terminal_preview(
-                preview, font_combo, font_size_spin, foreground_button, background_button
-            ),
+            lambda *_args: self.update_terminal_preview(preview, font_combo, font_size_spin, foreground_button, background_button),
         )
         foreground_button.connect(
             "notify::rgba",
-            lambda *_args: self.update_terminal_preview(
-                preview, font_combo, font_size_spin, foreground_button, background_button
-            ),
+            lambda *_args: self.update_terminal_preview(preview, font_combo, font_size_spin, foreground_button, background_button),
         )
         background_button.connect(
             "notify::rgba",
-            lambda *_args: self.update_terminal_preview(
-                preview, font_combo, font_size_spin, foreground_button, background_button
-            ),
+            lambda *_args: self.update_terminal_preview(preview, font_combo, font_size_spin, foreground_button, background_button),
         )
 
         dialog.connect(
@@ -2743,6 +2914,128 @@ class TermiaWindow(Gtk.ApplicationWindow):
             font_size_spin,
             foreground_button,
             background_button,
+        )
+        dialog.present()
+
+    def on_prompt_settings(self, _button: Gtk.Button) -> None:
+        dialog = Gtk.Dialog(title=self.t("prompt"), transient_for=self, modal=True)
+        dialog.set_resizable(False)
+        dialog.set_default_size(540, -1)
+        self.add_dialog_action_buttons(dialog, self.t("save"))
+
+        settings = self.store.data.terminal
+        content = dialog.get_content_area()
+        content.set_margin_top(16)
+        content.set_margin_bottom(16)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+        content.set_spacing(14)
+
+        grid = Gtk.Grid(column_spacing=12, row_spacing=12)
+
+        prompt_enabled = Gtk.CheckButton(label=self.t("custom_prompt"))
+        prompt_enabled.set_active(settings.prompt_enabled)
+        prompt_enabled.set_halign(Gtk.Align.START)
+
+        prompt_datetime_id, prompt_base_template = self.split_prompt_datetime_template(settings.prompt_template)
+        prompt_datetime_combo = Gtk.ComboBoxText()
+        prompt_datetime_combo.append("none", self.t("prompt_datetime_none"))
+        prompt_datetime_combo.append("time", self.t("prompt_datetime_time"))
+        prompt_datetime_combo.append("date", self.t("prompt_datetime_date"))
+        prompt_datetime_combo.append("both", self.t("prompt_datetime_both"))
+        prompt_datetime_combo.set_active_id(prompt_datetime_id)
+
+        prompt_template_entry = Gtk.Entry()
+        prompt_template_entry.set_text(prompt_base_template)
+        prompt_template_entry.set_placeholder_text(r"\u@\h:\w\$ ")
+
+        prompt_color_button = Gtk.ColorButton()
+        prompt_color_button.set_rgba(parse_color(settings.prompt_color, "#8ae234"))
+        prompt_color_button.set_title(self.t("prompt_color"))
+
+        prompt_preset_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
+        for preset_name, (template, color) in PROMPT_PRESETS.items():
+            preset_button = Gtk.Button(label=preset_name)
+            preset_button.add_css_class("prompt-preset-button")
+            preset_button.set_size_request(-1, 24)
+            preset_button.connect(
+                "clicked",
+                self.on_prompt_preset_clicked,
+                prompt_template_entry,
+                prompt_color_button,
+                template,
+                color,
+            )
+            prompt_preset_box.append(preset_button)
+
+        prompt_controls = (prompt_datetime_combo, prompt_template_entry, prompt_color_button, prompt_preset_box)
+        for prompt_widget in prompt_controls:
+            prompt_widget.set_sensitive(prompt_enabled.get_active())
+        prompt_enabled.connect(
+            "toggled",
+            lambda current: [widget.set_sensitive(current.get_active()) for widget in prompt_controls],
+        )
+
+        rows: list[tuple[str, Gtk.Widget]] = [
+            ("", prompt_enabled),
+            (self.t("prompt_datetime"), prompt_datetime_combo),
+            (self.t("prompt_template"), prompt_template_entry),
+            (self.t("prompt_color"), prompt_color_button),
+            (self.t("prompt_presets"), prompt_preset_box),
+        ]
+        for index, (label_text, widget) in enumerate(rows):
+            label = Gtk.Label(label=label_text)
+            label.set_xalign(0)
+            grid.attach(label, 0, index, 1, 1)
+            grid.attach(widget, 1, index, 1, 1)
+
+        preview = Gtk.Label()
+        preview.set_use_markup(True)
+        preview.set_xalign(0)
+        preview.set_margin_top(10)
+        preview.set_margin_bottom(10)
+        preview.set_margin_start(12)
+        preview.set_margin_end(12)
+        preview.set_css_classes(["terminal-preview"])
+
+        content.append(grid)
+        content.append(preview)
+
+        self.update_prompt_preview(
+            preview, prompt_enabled, prompt_datetime_combo, prompt_template_entry, prompt_color_button
+        )
+        prompt_enabled.connect(
+            "toggled",
+            lambda *_args: self.update_prompt_preview(
+                preview, prompt_enabled, prompt_datetime_combo, prompt_template_entry, prompt_color_button
+            ),
+        )
+        prompt_datetime_combo.connect(
+            "changed",
+            lambda *_args: self.update_prompt_preview(
+                preview, prompt_enabled, prompt_datetime_combo, prompt_template_entry, prompt_color_button
+            ),
+        )
+        prompt_template_entry.connect(
+            "changed",
+            lambda *_args: self.update_prompt_preview(
+                preview, prompt_enabled, prompt_datetime_combo, prompt_template_entry, prompt_color_button
+            ),
+        )
+        prompt_color_button.connect(
+            "notify::rgba",
+            lambda *_args: self.update_prompt_preview(
+                preview, prompt_enabled, prompt_datetime_combo, prompt_template_entry, prompt_color_button
+            ),
+        )
+
+        dialog.connect(
+            "response",
+            self.on_prompt_settings_response,
+            prompt_enabled,
+            prompt_datetime_combo,
+            prompt_template_entry,
+            prompt_color_button,
         )
         dialog.present()
 
@@ -2756,6 +3049,17 @@ class TermiaWindow(Gtk.ApplicationWindow):
     ) -> None:
         foreground_button.set_rgba(parse_color(foreground, "#f2f2f2"))
         background_button.set_rgba(parse_color(background, "#101010"))
+
+    def on_prompt_preset_clicked(
+        self,
+        _button: Gtk.Button,
+        prompt_template_entry: Gtk.Entry,
+        prompt_color_button: Gtk.ColorButton,
+        template: str,
+        color: str,
+    ) -> None:
+        prompt_template_entry.set_text(template)
+        prompt_color_button.set_rgba(parse_color(color, "#8ae234"))
 
     def terminal_font_families(self) -> list[str]:
         families = [
@@ -2783,6 +3087,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         font_size = int(font_size_spin.get_value())
         foreground = foreground_button.get_rgba().to_string()
         background = background_button.get_rgba().to_string()
+        preview.set_markup(GLib.markup_escape_text("usuario@servidor:~$ ssh ejemplo\nSalida de terminal"))
         css = (
             ".terminal-preview {"
             f"font-family: '{font_family}';"
@@ -2799,6 +3104,103 @@ class TermiaWindow(Gtk.ApplicationWindow):
             provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
+
+    def update_prompt_preview(
+        self,
+        preview: Gtk.Label,
+        prompt_enabled: Gtk.CheckButton,
+        prompt_datetime_combo: Gtk.ComboBoxText,
+        prompt_template_entry: Gtk.Entry,
+        prompt_color_button: Gtk.ColorButton,
+    ) -> None:
+        command_markup = GLib.markup_escape_text("ssh ejemplo\nSalida de terminal")
+        if prompt_enabled.get_active():
+            prompt_text = self.render_prompt_preview(
+                self.prompt_template_with_datetime(
+                    prompt_template_entry.get_text(), prompt_datetime_combo.get_active_id() or "none"
+                )
+            )
+            prompt_markup = GLib.markup_escape_text(prompt_text)
+            prompt_color = self.rgba_to_hex(prompt_color_button.get_rgba())
+            preview.set_markup(f'<span foreground="{prompt_color}">{prompt_markup}</span>{command_markup}')
+        else:
+            preview.set_markup(GLib.markup_escape_text("usuario@servidor:~$ ssh ejemplo\nSalida de terminal"))
+
+        settings = self.store.data.terminal
+        css = (
+            ".terminal-preview {"
+            f"font-family: '{settings.font_family}';"
+            f"font-size: {settings.font_size}pt;"
+            f"color: {settings.foreground};"
+            f"background: {settings.background};"
+            "border-radius: 6px;"
+            "}"
+        )
+        provider = Gtk.CssProvider()
+        provider.load_from_data(css.encode())
+        Gtk.StyleContext.add_provider_for_display(
+            preview.get_display(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
+    def split_prompt_datetime_template(self, template: str) -> tuple[str, str]:
+        prefixes = [
+            ("both", r"[\d \A] "),
+            ("date", r"[\d] "),
+            ("time", r"[\A] "),
+        ]
+        for option_id, prefix in prefixes:
+            if template.startswith(prefix):
+                return option_id, template[len(prefix):]
+        return "none", template
+
+    def prompt_template_with_datetime(self, template: str, option_id: str) -> str:
+        base_template = template if template.strip() else r"\u@\h:\w\$ "
+        prefixes = {
+            "time": r"[\A] ",
+            "date": r"[\d] ",
+            "both": r"[\d \A] ",
+        }
+        return f"{prefixes.get(option_id, '')}{base_template}"
+
+    def render_prompt_preview(self, template: str) -> str:
+        text = template if template.strip() else r"\u@\h:\w\$ "
+        replacements = {
+            r"\u": "usuario",
+            r"\h": "servidor",
+            r"\H": "servidor.local",
+            r"\w": "~/proyecto",
+            r"\W": "proyecto",
+            r"\$": "$",
+            r"\A": "14:35",
+            r"\t": "14:35:08",
+            r"\d": "dom jun 07",
+            r"\n": "\n",
+        }
+        for marker, value in replacements.items():
+            text = text.replace(marker, value)
+        return text
+
+    def on_prompt_settings_response(
+        self,
+        dialog: Gtk.Dialog,
+        response: Gtk.ResponseType,
+        prompt_enabled: Gtk.CheckButton,
+        prompt_datetime_combo: Gtk.ComboBoxText,
+        prompt_template_entry: Gtk.Entry,
+        prompt_color_button: Gtk.ColorButton,
+    ) -> None:
+        if response == Gtk.ResponseType.OK:
+            self.store.update_prompt_settings(
+                prompt_enabled.get_active(),
+                self.prompt_template_with_datetime(
+                    prompt_template_entry.get_text(), prompt_datetime_combo.get_active_id() or "none"
+                ),
+                self.rgba_to_hex(prompt_color_button.get_rgba()),
+            )
+            self.toast_label.set_label(self.t("prompt_settings_saved"))
+        dialog.destroy()
 
     def on_terminal_settings_response(
         self,
@@ -2817,7 +3219,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
                 background_button.get_rgba().to_string(),
             )
             self.apply_terminal_settings_to_open_tabs()
-            self.toast_label.set_label("Preferencias de terminal guardadas")
+            self.toast_label.set_label(self.t("terminal_settings_saved"))
         dialog.destroy()
 
     def group_descendant_ids(self, group_id: str) -> set[str]:
