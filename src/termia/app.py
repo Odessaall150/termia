@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Jordi Pons
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 import json
 import locale
 import os
@@ -1046,7 +1046,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         dialog.set_program_name("Termia")
         dialog.set_version("0.1.0")
         dialog.set_copyright("Copyright © 2026 Jordi Pons")
-        dialog.set_license_type(Gtk.License.MIT_X11)
+        dialog.set_license_type(Gtk.License.GPL_3_0)
         dialog.set_comments(self.t("about_content"))
         dialog.set_website(ISSUES_URL)
         dialog.set_website_label(self.t("report_issue"))

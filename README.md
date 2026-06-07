@@ -54,7 +54,7 @@ docs/README.es.md             Spanish documentation
 docs/README.ca.md             Catalan documentation
 SECURITY.md                    Credential storage warning
 THIRD_PARTY_NOTICES.md         Runtime dependency licenses
-LICENSE                       MIT license
+LICENSE                       GPL-3.0-or-later license
 ```
 
 The GTK implementation currently lives in one application module. The package
@@ -149,7 +149,7 @@ committed or distributed.
 
 ## License
 
-Termia is licensed under the [MIT License](LICENSE).
+Termia is licensed under the [GNU General Public License v3.0 or later](LICENSE).
 
 Runtime dependencies are installed separately by the operating system and are
 not vendored in this repository. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

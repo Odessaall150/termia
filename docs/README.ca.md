@@ -123,11 +123,11 @@ src/termia/app.py             Implementació de l'aplicació
 src/termia/assets/            Imatges utilitzades per Termia
 scripts/                      Instal·lació i desinstal·lació
 docs/                         Documentació addicional
-LICENSE                       Llicència MIT
+LICENSE                       Llicència GPL-3.0-o-posterior
 ```
 
 ## Llicència
 
-Termia es publica sota la [llicència MIT](../LICENSE). Les dependències s'instal·len
+Termia es publica sota la [GNU General Public License v3.0 o posterior](../LICENSE). Les dependències s'instal·len
 per separat mitjançant el gestor de paquets del sistema. Consulta
 [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
