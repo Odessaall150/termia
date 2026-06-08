@@ -654,7 +654,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
             b".termia-tab-label { padding: 0 1px; margin: 0 -1px 0 0; border-radius: 3px; "
             b"border-left: 1px solid @borders; border-right: 1px solid @borders; "
             b"background: transparent; } "
-            b".termia-tab-title { font-size: 0.82em; } "
+            b".termia-tab-title { font-size: 0.92em; } "
             b".termia-tab-close { padding: 0; min-width: 14px; min-height: 14px; } "
             b".termia-status-hide { padding: 0 6px; min-height: 18px; font-size: 0.85em; } "
             b".termia-disconnect-button { padding: 0 6px; min-height: 18px; font-size: 0.85em; } "
