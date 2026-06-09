@@ -22,7 +22,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Pango", "1.0")
 gi.require_version("Vte", "3.91")
-from gi.repository import Gdk, Gio, GLib, GObject, Gtk, Pango, Vte
+from gi.repository import Gdk, Gio, GLib, GObject, Graphene, Gtk, Pango, Vte
 
 
 APP_ID = "local.termia"
@@ -80,6 +80,7 @@ TRANSLATIONS = {
         "reconnect_prompt": "Pulsa Enter para reconectar.",
         "close_tab_on_ssh_exit": "Cerrar la pestaña al salir de una sesión SSH con exit",
         "open_local_terminal_on_startup": "Abrir terminal local al iniciar Termia",
+        "show_sidebar_on_startup": "Mostrar listado de servidores al iniciar Termia",
         "delete_group_confirm": "Eliminar grupo",
         "delete_group_confirm_detail": "¿Quieres eliminar {name}? También se eliminarán todos sus subgrupos y servidores. Esta acción no se puede deshacer.",
         "group_deleted": "Grupo eliminado: {name}",
@@ -142,6 +143,7 @@ TRANSLATIONS = {
         "reconnect_prompt": "Prem Enter per reconnectar.",
         "close_tab_on_ssh_exit": "Tancar la pestanya en sortir d'una sessió SSH amb exit",
         "open_local_terminal_on_startup": "Obrir un terminal local en iniciar Termia",
+        "show_sidebar_on_startup": "Mostrar el llistat de servidors en iniciar Termia",
         "delete_group_confirm": "Eliminar grup",
         "delete_group_confirm_detail": "Vols eliminar {name}? També s'eliminaran tots els subgrups i servidors. Aquesta acció no es pot desfer.",
         "group_deleted": "Grup eliminat: {name}",
@@ -204,6 +206,7 @@ TRANSLATIONS = {
         "reconnect_prompt": "Press Enter to reconnect.",
         "close_tab_on_ssh_exit": "Close the tab when leaving an SSH session with exit",
         "open_local_terminal_on_startup": "Open a local terminal when Termia starts",
+        "show_sidebar_on_startup": "Show the server list when Termia starts",
         "delete_group_confirm": "Delete group",
         "delete_group_confirm_detail": "Delete {name}? All nested subgroups and servers will also be deleted. This action cannot be undone.",
         "group_deleted": "Group deleted: {name}",
@@ -298,6 +301,7 @@ class AppSettings:
     close_tab_on_disconnect: bool = False
     close_tab_on_ssh_exit: bool = False
     open_local_terminal_on_startup: bool = True
+    show_sidebar_on_startup: bool = True
     show_session_status_bar: bool = True
     confirm_disconnect: bool = True
     confirm_close_app: bool = False
@@ -540,7 +544,7 @@ class ConnectionStore:
         self, theme: str, language: str, close_tab_on_disconnect: bool,
         confirm_disconnect: bool, confirm_close_app: bool,
         sudo_password_shortcut: bool, sudo_password_enter: bool, close_tab_on_ssh_exit: bool,
-        open_local_terminal_on_startup: bool, show_session_status_bar: bool,
+        open_local_terminal_on_startup: bool, show_sidebar_on_startup: bool, show_session_status_bar: bool,
     ) -> None:
         self.data.app = AppSettings(
             theme=theme if theme in APP_THEMES else "system",
@@ -548,6 +552,7 @@ class ConnectionStore:
             close_tab_on_disconnect=close_tab_on_disconnect,
             close_tab_on_ssh_exit=close_tab_on_ssh_exit,
             open_local_terminal_on_startup=open_local_terminal_on_startup,
+            show_sidebar_on_startup=show_sidebar_on_startup,
             show_session_status_bar=show_session_status_bar,
             confirm_disconnect=confirm_disconnect,
             confirm_close_app=confirm_close_app,
@@ -603,6 +608,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.selected: RowObject | None = None
         self.selected_tree_widget: Gtk.Widget | None = None
         self.group_expanded_state: dict[str, bool] = {}
+        self.collapse_groups_on_startup = True
         self.tree_widgets: dict[tuple[str, str], Gtk.Widget] = {}
         self.active_context_popover: Gtk.Popover | None = None
         self.model = Gio.ListStore(item_type=RowObject)
@@ -619,6 +625,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.toast_label.add_css_class("dim-label")
 
         self._build_ui()
+        self.set_sidebar_visible(self.store.data.app.show_sidebar_on_startup)
         self.refresh_list()
         if self.store.data.app.open_local_terminal_on_startup:
             GLib.idle_add(self.open_startup_local_terminal)
@@ -696,6 +703,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
             b"background: transparent; border: 0; box-shadow: none; } "
             b".termia-tab-label:hover { background: alpha(@theme_fg_color, 0.06); } "
             b".termia-tab-label.active { background: alpha(@theme_fg_color, 0.13); } "
+            b".termia-tab-label.dragging { background: alpha(@theme_selected_bg_color, 0.25); opacity: 0.72; } "
             b".termia-tab-title { font-size: 1.05em; } "
             b".termia-tab-close { padding: 0; min-width: 18px; min-height: 18px; } "
             b".termia-status-hide { padding: 0 6px; min-height: 18px; font-size: 0.85em; } "
@@ -822,6 +830,12 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.session_tab_bar.add_css_class("termia-session-tabs")
         self.session_tab_bar.set_hexpand(True)
         self.session_tab_bar.set_visible(False)
+        tab_bar_drop = Gtk.DropTarget.new(str, Gdk.DragAction.MOVE)
+        tab_bar_drop.set_preload(True)
+        tab_bar_drop.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        tab_bar_drop.connect("motion", self.on_tab_bar_drop_motion)
+        tab_bar_drop.connect("drop", self.on_tab_bar_drop)
+        self.session_tab_bar.add_controller(tab_bar_drop)
         detail.append(self.session_tab_bar)
 
         self.terminal_stack = Gtk.Stack()
@@ -1431,7 +1445,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
     def get_group_expanded(self, group_id: str, query: str) -> bool:
         if query:
             return True
-        return self.group_expanded_state.get(group_id, True)
+        return self.group_expanded_state.get(group_id, not self.collapse_groups_on_startup)
 
     def on_group_expanded_changed(self, expander: Gtk.Expander, _param: Any) -> None:
         group_id = getattr(expander, "group_id", None)
@@ -2285,7 +2299,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         return False
 
     def move_terminal_tab_focus(self, session: TerminalSession, delta: int) -> None:
-        sessions = [item for item in self.open_tabs.values() if item.detached_window is None]
+        sessions = self.visible_sessions_in_tab_order()
         if len(sessions) <= 1:
             return
         visible = self.terminal_stack.get_visible_child()
@@ -2469,6 +2483,21 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.update_session_tab_bar_visibility()
         self.set_active_session(session.id)
 
+    def visible_sessions_in_tab_order(self) -> list[TerminalSession]:
+        sessions_by_label = {
+            session.tab_label: session
+            for session in self.open_tabs.values()
+            if session.detached_window is None
+        }
+        ordered: list[TerminalSession] = []
+        child = self.session_tab_bar.get_first_child()
+        while child is not None:
+            session = sessions_by_label.get(child)
+            if session is not None:
+                ordered.append(session)
+            child = child.get_next_sibling()
+        return ordered
+
     def set_active_session(self, session_id: str) -> None:
         session = self.open_tabs.get(session_id)
         if session is None or session.detached_window is not None:
@@ -2501,9 +2530,9 @@ class TermiaWindow(Gtk.ApplicationWindow):
         self.session_tab_bar.set_visible(len(visible_sessions) > 1)
 
     def focus_available_session_after_close(self, closed_session_id: str) -> None:
-        for session_id, session in self.open_tabs.items():
-            if session_id != closed_session_id and session.detached_window is None:
-                self.set_active_session(session_id)
+        for session in self.visible_sessions_in_tab_order():
+            if session.id != closed_session_id:
+                self.set_active_session(session.id)
                 return
 
     def update_session_tab_title(self, session: TerminalSession, title: str) -> None:
@@ -2586,6 +2615,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         box.add_css_class("termia-tab-label")
         box.set_hexpand(True)
+        box.set_can_target(True)
         box.set_margin_start(0)
         box.set_margin_end(0)
         label = Gtk.Label(label=title)
@@ -2596,6 +2626,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         label.set_width_chars(1)
         label.set_max_width_chars(36)
         label.set_tooltip_text(title)
+        label.set_can_target(False)
         label.set_margin_start(4)
         label.set_margin_end(4)
         close_button = Gtk.Button(icon_name="window-close-symbolic")
@@ -2605,8 +2636,14 @@ class TermiaWindow(Gtk.ApplicationWindow):
         close_button.connect("clicked", self.on_request_close_tab, session_id, page)
         left_click = Gtk.GestureClick.new()
         left_click.set_button(1)
-        left_click.connect("released", lambda *_args: self.set_active_session(session_id))
+        left_click.connect("pressed", self.on_tab_left_press, session_id)
         box.add_controller(left_click)
+        drag_source = Gtk.DragSource.new()
+        drag_source.set_actions(Gdk.DragAction.MOVE)
+        drag_source.connect("prepare", self.on_tab_drag_prepare, session_id, box)
+        drag_source.connect("drag-begin", self.on_tab_drag_begin, session_id, box)
+        drag_source.connect("drag-end", self.on_tab_drag_end, session_id)
+        box.add_controller(drag_source)
         right_click = Gtk.GestureClick.new()
         right_click.set_button(3)
         right_click.connect("pressed", self.on_tab_right_click, session_id, box)
@@ -2614,6 +2651,107 @@ class TermiaWindow(Gtk.ApplicationWindow):
         box.append(label)
         box.append(close_button)
         return box
+
+    def on_tab_left_press(
+        self,
+        _gesture: Gtk.GestureClick,
+        _n_press: int,
+        _x: float,
+        _y: float,
+        session_id: str,
+    ) -> None:
+        self.set_active_session(session_id)
+
+    def on_tab_drag_prepare(
+        self,
+        _source: Gtk.DragSource,
+        _x: float,
+        _y: float,
+        session_id: str,
+        _tab: Gtk.Widget,
+    ) -> Gdk.ContentProvider | None:
+        if session_id not in self.open_tabs:
+            return None
+        return Gdk.ContentProvider.new_for_value(session_id)
+
+    def on_tab_drag_begin(
+        self,
+        source: Gtk.DragSource,
+        _drag: Gdk.Drag,
+        session_id: str,
+        tab: Gtk.Widget,
+    ) -> None:
+        self.set_active_session(session_id)
+        self.tab_drag_session_id = session_id
+        tab.add_css_class("dragging")
+        source.set_icon(Gtk.WidgetPaintable.new(tab), tab.get_allocated_width() // 2, tab.get_allocated_height() // 2)
+
+    def on_tab_drag_end(
+        self,
+        _source: Gtk.DragSource,
+        _drag: Gdk.Drag,
+        _delete_data: bool,
+        session_id: str,
+    ) -> None:
+        session = self.open_tabs.get(session_id)
+        if session is not None:
+            session.tab_label.remove_css_class("dragging")
+        self.tab_drag_session_id = None
+
+    def on_tab_bar_drop_motion(self, target: Gtk.DropTarget, x: float, _y: float) -> Gdk.DragAction:
+        self.reorder_dragged_tab_at_bar_x(target, x)
+        return Gdk.DragAction.MOVE
+
+    def on_tab_bar_drop(self, target: Gtk.DropTarget, dragged_session_id: str, x: float, _y: float) -> bool:
+        self.reorder_dragged_tab_at_bar_x(target, x, dragged_session_id)
+        dragged = self.open_tabs.get(dragged_session_id)
+        if dragged is not None:
+            self.set_active_session(dragged.id)
+        return True
+
+    def reorder_dragged_tab_at_bar_x(
+        self,
+        target: Gtk.DropTarget,
+        pointer_x: float,
+        dragged_session_id: str | None = None,
+    ) -> None:
+        dragged_session_id = dragged_session_id or getattr(self, "tab_drag_session_id", None) or target.get_value()
+        if not isinstance(dragged_session_id, str):
+            return
+        dragged = self.open_tabs.get(dragged_session_id)
+        if dragged is None or dragged.detached_window is not None:
+            return
+        sessions = self.visible_sessions_in_tab_order()
+        if len(sessions) <= 1:
+            return
+        try:
+            dragged_index = sessions.index(dragged)
+        except ValueError:
+            return
+
+        previous_sibling = dragged.tab_label.get_prev_sibling()
+        for index, session in enumerate(sessions):
+            if session.id == dragged_session_id:
+                continue
+            width = session.tab_label.get_allocated_width()
+            ok, start = session.tab_label.compute_point(
+                self.session_tab_bar, Graphene.Point().init(0, 0)
+            )
+            if not ok or pointer_x < start.x or pointer_x > start.x + width:
+                continue
+
+            if index < dragged_index:
+                threshold = start.x + width * 0.8
+                previous_sibling = session.tab_label.get_prev_sibling() if pointer_x < threshold else session.tab_label
+            else:
+                threshold = start.x + width * 0.2
+                previous_sibling = session.tab_label if pointer_x > threshold else session.tab_label.get_prev_sibling()
+            break
+
+        if dragged.tab_label.get_prev_sibling() is previous_sibling:
+            return
+        self.session_tab_bar.reorder_child_after(dragged.tab_label, previous_sibling)
+        self.update_session_tab_states()
 
     def on_tab_right_click(
         self,
@@ -2651,10 +2789,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
             if server is not None:
                 self.open_terminal_tab(server)
             return
-        shell = os.environ.get("SHELL") or GLib.find_program_in_path("bash") or "/bin/sh"
-        self.open_process_terminal_tab(
-            self.local_directory_title(Path.home()), [shell], None, working_directory=str(Path.home())
-        )
+        self.on_open_local_terminal(None)
 
     def detach_tab(self, popover: Gtk.Popover, session: TerminalSession) -> None:
         popover.popdown()
@@ -2687,6 +2822,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         entry.set_margin_bottom(12)
         entry.set_margin_start(12)
         entry.set_margin_end(12)
+        entry.connect("activate", lambda _entry: dialog.response(Gtk.ResponseType.OK))
         dialog.get_content_area().append(entry)
         dialog.connect("response", self.on_rename_tab_response, entry, session)
         dialog.present()
@@ -3055,6 +3191,9 @@ class TermiaWindow(Gtk.ApplicationWindow):
         open_local_terminal_on_startup = Gtk.CheckButton(label=self.t("open_local_terminal_on_startup"))
         open_local_terminal_on_startup.set_active(self.store.data.app.open_local_terminal_on_startup)
         open_local_terminal_on_startup.set_halign(Gtk.Align.START)
+        show_sidebar_on_startup = Gtk.CheckButton(label=self.t("show_sidebar_on_startup"))
+        show_sidebar_on_startup.set_active(self.store.data.app.show_sidebar_on_startup)
+        show_sidebar_on_startup.set_halign(Gtk.Align.START)
         show_session_status_bar = Gtk.CheckButton(label=self.t("show_session_status_bar"))
         show_session_status_bar.set_active(self.store.data.app.show_session_status_bar)
         show_session_status_bar.set_halign(Gtk.Align.START)
@@ -3080,6 +3219,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
             ("", close_tab_on_disconnect),
             ("", close_tab_on_ssh_exit),
             ("", open_local_terminal_on_startup),
+            ("", show_sidebar_on_startup),
             ("", show_session_status_bar),
             ("", confirm_disconnect),
             ("", confirm_close_app),
@@ -3097,7 +3237,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         dialog.connect(
             "response", self.on_app_preferences_response, theme_combo, language_combo,
             close_tab_on_disconnect, close_tab_on_ssh_exit, open_local_terminal_on_startup,
-            show_session_status_bar, confirm_disconnect, confirm_close_app,
+            show_sidebar_on_startup, show_session_status_bar, confirm_disconnect, confirm_close_app,
             sudo_password_shortcut, sudo_password_enter
         )
         dialog.present()
@@ -3111,6 +3251,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         close_tab_on_disconnect: Gtk.CheckButton,
         close_tab_on_ssh_exit: Gtk.CheckButton,
         open_local_terminal_on_startup: Gtk.CheckButton,
+        show_sidebar_on_startup: Gtk.CheckButton,
         show_session_status_bar: Gtk.CheckButton,
         confirm_disconnect: Gtk.CheckButton,
         confirm_close_app: Gtk.CheckButton,
@@ -3129,11 +3270,17 @@ class TermiaWindow(Gtk.ApplicationWindow):
                 sudo_password_enter.get_active(),
                 close_tab_on_ssh_exit.get_active(),
                 open_local_terminal_on_startup.get_active(),
+                show_sidebar_on_startup.get_active(),
                 show_session_status_bar.get_active(),
             )
             self.apply_app_theme()
             self.install_tree_styles()
             self.apply_session_status_bar_visibility_to_open_tabs()
+            self.set_sidebar_visible(self.store.data.app.show_sidebar_on_startup)
+            self.collapse_groups_on_startup = True
+            self.group_expanded_state = {group.id: False for group in self.store.data.groups}
+            self.group_expanded_state["__ungrouped__"] = False
+            self.refresh_list()
             if previous_language != self.store.data.app.language:
                 self.toast_label.set_label(self.t("restart_language"))
         dialog.destroy()
