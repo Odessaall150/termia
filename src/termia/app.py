@@ -23,6 +23,18 @@ gi.require_version("Pango", "1.0")
 gi.require_version("Vte", "3.91")
 from gi.repository import Gdk, Gio, GLib, GObject, Graphene, Gtk, Pango, Vte
 
+from .constants import (
+    ABOUT_IMAGE,
+    APP_ID,
+    APP_THEMES,
+    DATA_FILE,
+    ISSUES_URL,
+    LANGUAGES,
+    LEGACY_ANSI_PALETTE,
+    PROMPT_PRESETS,
+    STATISTICS_FILE,
+    TERMINAL_PALETTES,
+)
 from .models import (
     DEFAULT_ANSI_PALETTE,
     AppSettings,
@@ -33,33 +45,6 @@ from .models import (
     TerminalSettings,
     detect_system_language,
 )
-
-
-APP_ID = "local.termia"
-APP_DIR = Path(__file__).resolve().parent
-DATA_FILE = Path(GLib.get_user_config_dir()) / "termia" / "connections.json"
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local" / "state")))
-STATISTICS_FILE = STATE_DIR / "termia" / "statistics.json"
-ABOUT_IMAGE = APP_DIR / "assets" / "termia.svg"
-ISSUES_URL = "https://github.com/buuuki/termia/issues"
-
-LEGACY_ANSI_PALETTE = ['#2e3436', '#cc0000', '#4e9a06', '#c4a000', '#3465a4', '#75507b', '#06989a', '#d3d7cf', '#555753', '#ef2929', '#8ae234', '#fce94f', '#729fcf', '#ad7fa8', '#34e2e2', '#eeeeec']
-TERMINAL_PALETTES = {
-    "Ubuntu": ("#eeeeec", "#300a24"),
-    "Polaris": ("#d8dee9", "#1f2430"),
-    "Solarized": ("#839496", "#002b36"),
-    "Tango": ("#eeeeec", "#2e3436"),
-    "Claro": ("#2e3436", "#f6f5f4"),
-}
-PROMPT_PRESETS = {
-    "Verde": (r"\u@\h:\w\$ ", "#8ae234"),
-    "Azul": (r"\u@\h:\w\$ ", "#729fcf"),
-    "Ambar": (r"\u@\h:\w\$ ", "#fce94f"),
-    "Rojo": (r"\u@\h \W \$ ", "#ef2929"),
-    "Blanco": (r"\u@\h:\w\$ ", "#eeeeec"),
-}
-APP_THEMES = {"system": "Sistema", "light": "Claro", "dark": "Oscuro"}
-LANGUAGES = {"es": "Castellano", "ca": "Català", "en": "English"}
 
 
 TRANSLATIONS = {
