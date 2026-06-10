@@ -51,6 +51,7 @@ from .models import (
     TerminalSettings,
 )
 from .stores import ConnectionStore
+from .statistics_utils import average_session_duration, format_duration, top_server_statistics
 from .styles import build_application_css
 from .terminal_config import (
     build_local_prompt_shell_command,
@@ -301,7 +302,7 @@ class TermiaWindow(Gtk.ApplicationWindow):
         content.append(scroller)
 
         stats = self.store.data.statistics
-        average_duration = stats.duration_total / stats.completed_sessions if stats.completed_sessions else None
+        average_duration = average_session_duration(stats)
         cards = Gtk.Grid()
         cards.set_column_spacing(10)
         cards.set_row_spacing(10)
@@ -326,14 +327,14 @@ class TermiaWindow(Gtk.ApplicationWindow):
             0, 1, 1, 1
         )
         cards.attach(
-            self.build_stat_card(self.t("average_duration"), self.format_duration(average_duration), self.t("duration")),
+            self.build_stat_card(self.t("average_duration"), format_duration(average_duration), self.t("duration")),
             1, 1, 1, 1
         )
         cards.attach(
             self.build_stat_card(
                 self.t("longest_duration"),
-                self.format_duration(stats.duration_max if stats.completed_sessions else None),
-                f"{self.t('shortest_duration')}: {self.format_duration(stats.duration_min)}",
+                format_duration(stats.duration_max if stats.completed_sessions else None),
+                f"{self.t('shortest_duration')}: {format_duration(stats.duration_min)}",
             ),
             2, 1, 1, 1
         )
@@ -393,46 +394,36 @@ class TermiaWindow(Gtk.ApplicationWindow):
             list_box.append(row)
             return list_box
 
-        servers_by_id = {server.id: server for server in self.store.data.servers}
-        ranked = sorted(stats.server_connections.items(), key=lambda item: item[1], reverse=True)[:10]
-        max_count = max((count for _server_id, count in ranked), default=1)
-        for index, (server_id, count) in enumerate(ranked, start=1):
-            server = servers_by_id.get(server_id)
-            name = server.name if server is not None else server_id
-            subtitle = f"{server.user}@{server.host}:{server.port}" if server is not None else ""
+        ranked = top_server_statistics(stats, self.store.data.servers)
+        max_count = max((item.count for item in ranked), default=1)
+        for item in ranked:
             row = Gtk.ListBoxRow()
             row_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             row_box.add_css_class("stat-row")
             header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            name_label = Gtk.Label(label=f"{index}. {name}")
+            name_label = Gtk.Label(label=f"{item.index}. {item.name}")
             name_label.set_xalign(0)
             name_label.set_hexpand(True)
-            count_label = Gtk.Label(label=str(count))
+            count_label = Gtk.Label(label=str(item.count))
             count_label.set_xalign(1)
             count_label.add_css_class("heading")
             header.append(name_label)
             header.append(count_label)
             row_box.append(header)
-            if subtitle:
-                subtitle_label = Gtk.Label(label=subtitle)
+            if item.subtitle:
+                subtitle_label = Gtk.Label(label=item.subtitle)
                 subtitle_label.set_xalign(0)
                 subtitle_label.add_css_class("dim-label")
                 row_box.append(subtitle_label)
             progress = Gtk.LevelBar.new_for_interval(0, max_count)
-            progress.set_value(count)
+            progress.set_value(item.count)
             progress.set_hexpand(True)
             row_box.append(progress)
             row.set_child(row_box)
             list_box.append(row)
         return list_box
 
-    def format_duration(self, seconds: float | None) -> str:
-        if seconds is None:
-            return "--:--:--"
-        total = max(0, int(seconds))
-        hours, remainder = divmod(total, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
 
     def refresh_statistics_menu(self) -> None:
         return
