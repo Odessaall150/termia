@@ -15,6 +15,12 @@ Protected behavior does not mean the code cannot change. It means regressions sh
 
 ## Protected Behaviors
 
+### Project License
+
+- Termia must remain licensed as GNU GPL-3.0-or-later unless the project owner explicitly requests a license change.
+- The `LICENSE` file, README license section, About dialog license metadata, and third-party notices must stay consistent with the GPL project license.
+- New project-owned assets, including bundled icons, must use the same GPL project license unless a different compatible license is explicitly documented.
+
 ### Main Toolbar Icons
 
 - Main toolbar action icons are protected UI decisions and must not be changed without explicit user approval.
