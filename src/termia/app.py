@@ -7,7 +7,6 @@ import subprocess
 import time
 from urllib.parse import unquote, urlparse
 
-import yaml
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -21,8 +20,7 @@ gi.require_version("Graphene", "1.0")
 gi.require_version("Vte", "3.91")
 from gi.repository import Gdk, Gio, GLib, Graphene, Gtk, Pango, Vte
 
-from .asbru_import import extract_asbru_connections, merge_asbru_connections
-from .config_io import export_connections_file, load_store_data_from_json
+from .config_actions import ConfigActionsMixin
 from .connection_utils import (
     find_group,
     find_server,
@@ -61,7 +59,7 @@ from .terminal_config import (
 from .ui_state import RowObject, TerminalSession
 
 
-class TermiaWindow(MainMenuMixin, StatisticsViewMixin, Gtk.ApplicationWindow):
+class TermiaWindow(ConfigActionsMixin, MainMenuMixin, StatisticsViewMixin, Gtk.ApplicationWindow):
     def __init__(self, app: Gtk.Application) -> None:
         super().__init__(application=app, title="Termia")
         self.set_default_size(1000, 620)
@@ -1955,90 +1953,6 @@ class TermiaWindow(MainMenuMixin, StatisticsViewMixin, Gtk.ApplicationWindow):
         self.open_tabs.pop(session_id, None)
         self.update_session_tab_bar_visibility()
         self.focus_available_session_after_close(session_id)
-
-    def on_request_clear_config(self) -> None:
-        dialog = Gtk.AlertDialog(message=self.t("clear_config"), detail=self.t("clear_confirm"))
-        dialog.set_buttons([self.t("cancel"), self.t("clear_config")])
-        dialog.set_cancel_button(0)
-        dialog.set_default_button(0)
-        dialog.choose(self, None, self.on_clear_config_confirmed)
-
-    def on_clear_config_confirmed(self, dialog: Gtk.AlertDialog, result: Gio.AsyncResult) -> None:
-        try:
-            response = dialog.choose_finish(result)
-        except GLib.Error:
-            return
-        if response != 1:
-            return
-        self.store.data.groups = []
-        self.store.data.servers = []
-        self.store.save()
-        self.selected = None
-        self.refresh_list()
-        self.toast_label.set_label(self.t("clear_config"))
-
-    def on_export_config(self) -> None:
-        dialog = Gtk.FileDialog(title=self.t("export_config"))
-        dialog.set_initial_name("termia.json")
-        dialog.save(self, None, self.on_export_config_selected)
-
-    def on_export_config_selected(self, dialog: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
-        try:
-            file = dialog.save_finish(result)
-        except GLib.Error:
-            return
-        if file and file.get_path():
-            self.store.save()
-            export_connections_file(self.store.path, Path(file.get_path()))
-            self.toast_label.set_label("Configuración exportada")
-
-    def on_import_config(self) -> None:
-        dialog = Gtk.FileDialog(title=self.t("import_config"))
-        dialog.open(self, None, self.on_import_config_selected)
-
-    def on_import_config_selected(self, dialog: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
-        try:
-            file = dialog.open_finish(result)
-        except GLib.Error:
-            return
-        if file and file.get_path():
-            try:
-                imported = load_store_data_from_json(Path(file.get_path()), self.store.data.statistics)
-            except (OSError, ValueError, TypeError) as exc:
-                self.toast_label.set_label(f"No se pudo importar JSON: {exc}")
-                return
-            self.store.data = imported
-            self.store.save()
-            self.apply_app_theme()
-            self.refresh_list()
-            self.toast_label.set_label("Configuración importada")
-
-    def on_import_asbru_config(self) -> None:
-        dialog = Gtk.FileDialog(title=self.t("import_asbru"))
-        dialog.open(self, None, self.on_import_asbru_config_selected)
-
-    def on_import_asbru_config_selected(self, dialog: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
-        try:
-            file = dialog.open_finish(result)
-        except GLib.Error:
-            return
-        if not file or not file.get_path():
-            return
-        try:
-            payload = yaml.safe_load(Path(file.get_path()).read_text(encoding="utf-8")) or {}
-        except (OSError, yaml.YAMLError) as exc:
-            self.toast_label.set_label(f"No se pudo importar YAML de Ásbrú: {exc}")
-            return
-        if not isinstance(payload, dict):
-            self.toast_label.set_label("El YAML de Ásbrú no tiene un formato compatible")
-            return
-        if "__PAC__EXPORTED__PARTIAL_CONF" in payload:
-            payload = payload["__PAC__EXPORTED__PARTIAL_CONF"]
-        imported_groups, imported_servers = extract_asbru_connections(payload)
-        added_groups, added_servers = merge_asbru_connections(self.store.data, imported_groups, imported_servers)
-        self.store.save()
-        self.refresh_list()
-        self.toast_label.set_label(f"Ásbrú: {added_groups} grupos y {added_servers} servidores importados")
 
     def on_app_preferences(self, _button: Gtk.Button) -> None:
         dialog = Gtk.Dialog(title=self.t("general"), transient_for=self, modal=True)
