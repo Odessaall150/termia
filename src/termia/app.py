@@ -42,6 +42,7 @@ from .models import (
     TerminalSettings,
 )
 from .stores import ConnectionStore
+from .styles import build_application_css
 from .terminal_config import (
     build_local_prompt_shell_command,
     build_terminal_environment,
@@ -139,42 +140,9 @@ class TermiaWindow(Gtk.ApplicationWindow):
         prefer_dark = bool(
             gtk_settings.get_property("gtk-application-prefer-dark-theme")
         ) if gtk_settings is not None else False
-        menu_bg = b"#3a3a3a" if self.store.data.app.theme == "dark" or prefer_dark else b"#f6f6f6"
+        menu_bg = "#3a3a3a" if self.store.data.app.theme == "dark" or prefer_dark else "#f6f6f6"
         provider = Gtk.CssProvider()
-        provider.load_from_data(
-            b"@define-color termia_menu_bg " + menu_bg + b"; "
-            b".termia-tree-item { border-radius: 4px; } "
-            b".termia-server-item { padding-top: 2px; padding-bottom: 2px; } "
-            b".prompt-preset-button { padding: 1px 6px; min-height: 24px; } "
-            b"headerbar { background: @headerbar_backdrop_color; border-bottom-width: 0; box-shadow: none; } "
-            b"headerbar:backdrop { background: @headerbar_backdrop_color; } "
-            b".termia-session-tabs { background: @headerbar_backdrop_color; padding: 4px 4px 3px 4px; "
-            b"border: 0; box-shadow: none; } "
-            b".termia-terminal-stack { border: 0; box-shadow: none; } "
-            b"popover.termia-menu-popover > contents { background: @termia_menu_bg; "
-            b"background-color: @termia_menu_bg; background-image: none; opacity: 1; } "
-            b".termia-menu-panel { background: @termia_menu_bg; "
-            b"background-color: @termia_menu_bg; background-image: none; opacity: 1; } "
-            b".termia-menu-panel list { background: transparent; background-color: transparent; } "
-            b".termia-tab-label { padding: 7px 10px; margin: 0 2px; border-radius: 8px; "
-            b"background: transparent; border: 0; box-shadow: none; } "
-            b".termia-tab-label:hover { background: alpha(@theme_fg_color, 0.06); } "
-            b".termia-tab-label.active { background: alpha(@theme_fg_color, 0.13); } "
-            b".termia-tab-label.dragging { background: alpha(@theme_selected_bg_color, 0.25); opacity: 0.72; } "
-            b".termia-tab-title { font-size: 1.05em; } "
-            b".termia-tab-close { padding: 0; min-width: 18px; min-height: 18px; } "
-            b".termia-status-hide { padding: 0 6px; min-height: 18px; font-size: 0.85em; } "
-            b".termia-disconnect-button { padding: 0 6px; min-height: 18px; font-size: 0.85em; } "
-            b".stat-card { padding: 10px 12px; border: 1px solid @borders; border-radius: 6px; "
-            b"background: alpha(@theme_bg_color, 0.58); } "
-            b".stat-card-title { font-size: 0.82em; } "
-            b".stat-card-value { font-size: 1.55em; font-weight: 700; } "
-            b".stat-card-subtitle { font-size: 0.82em; } "
-            b".stat-row { padding: 6px 8px; border-bottom: 1px solid alpha(@borders, 0.55); } "
-            b".termia-tree-item.selected { "
-            b"background-color: @theme_selected_bg_color; "
-            b"color: @theme_selected_fg_color; }"
-        )
+        provider.load_from_data(build_application_css(menu_bg))
         Gtk.StyleContext.add_provider_for_display(
             display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
