@@ -61,6 +61,10 @@ class TermiaWindow(
         self.toast_label.add_css_class("dim-label")
 
         self._build_ui()
+        if self.store.recovery_messages:
+            self.toast_label.set_label(
+                self.t("config_file_recovered").format(path=self.store.recovery_messages[0])
+            )
         self.set_sidebar_visible(self.store.data.app.show_sidebar_on_startup)
         self.refresh_list()
         if self.store.data.app.open_local_terminal_on_startup:

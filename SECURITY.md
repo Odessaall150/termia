@@ -17,10 +17,10 @@ Prefer SSH keys where possible.
 Exported configuration files can also contain passwords. Treat them as sensitive
 files, even when the local connection file uses obfuscated storage.
 
-The optional `Ctrl+P` shortcut sends the saved SSH password directly to the
-active remote terminal process, with an optional trailing `Enter`. It does not use
-the clipboard. Enable it only on trusted desktops and use it only when the terminal
-is waiting for a password.
+The configured password shortcut, `Ctrl+P` by default, sends the saved SSH
+password directly to the active remote terminal process, with an optional trailing
+`Enter`. It does not use the clipboard. Enable it only on trusted desktops and
+use it only when the terminal is waiting for a password.
 
 ## Local statistics
 

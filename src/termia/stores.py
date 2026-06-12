@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -33,13 +34,21 @@ class StatisticsStore:
     def __init__(self, path: Path) -> None:
         self.path = path
         self.data = StatisticsSettings()
+        self.recovery_messages: list[str] = []
         self.load()
 
     def load(self) -> None:
-        if self.path.exists():
+        if not self.path.exists():
+            return
+        try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("Statistics file must contain a JSON object.")
             fields = StatisticsSettings.__dataclass_fields__
             self.data = StatisticsSettings(**{key: value for key, value in payload.items() if key in fields})
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            backup = backup_invalid_file(self.path)
+            self.recovery_messages.append(str(backup or self.path))
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -52,16 +61,23 @@ class SettingsStore:
         self.path = path
         self.app = AppSettings()
         self.terminal = TerminalSettings()
+        self.recovery_messages: list[str] = []
         self.load()
 
     def load(self) -> None:
         if not self.path.exists():
             return
-        payload = json.loads(self.path.read_text(encoding="utf-8"))
-        app_payload = payload.get("app", {})
-        app_fields = AppSettings.__dataclass_fields__
-        self.app = normalize_app_settings(AppSettings(**{key: value for key, value in app_payload.items() if key in app_fields}))
-        self.terminal = normalize_terminal_settings(TerminalSettings(**payload.get("terminal", {})))
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("Settings file must contain a JSON object.")
+            app_payload = payload.get("app", {})
+            app_fields = AppSettings.__dataclass_fields__
+            self.app = normalize_app_settings(AppSettings(**{key: value for key, value in app_payload.items() if key in app_fields}))
+            self.terminal = normalize_terminal_settings(TerminalSettings(**payload.get("terminal", {})))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            backup = backup_invalid_file(self.path)
+            self.recovery_messages.append(str(backup or self.path))
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +87,22 @@ class SettingsStore:
         }
         self.path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         self.path.chmod(0o600)
+
+
+def backup_invalid_file(path: Path) -> Path | None:
+    if not path.exists():
+        return None
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = path.with_name(f"{path.name}.invalid-{timestamp}")
+    suffix = 1
+    while backup.exists():
+        backup = path.with_name(f"{path.name}.invalid-{timestamp}-{suffix}")
+        suffix += 1
+    try:
+        path.replace(backup)
+    except OSError:
+        return None
+    return backup
 
 
 def normalize_app_settings(app: AppSettings) -> AppSettings:
@@ -103,6 +135,10 @@ class ConnectionStore:
         self.path = path
         self.settings_store = SettingsStore(settings_path)
         self.statistics_store = StatisticsStore(statistics_path)
+        self.recovery_messages: list[str] = [
+            *self.settings_store.recovery_messages,
+            *self.statistics_store.recovery_messages,
+        ]
         self.data = StoreData(
             terminal=self.settings_store.terminal,
             app=self.settings_store.app,
@@ -119,9 +155,19 @@ class ConnectionStore:
             )
             return
 
-        raw_payload = read_raw_connections_payload(self.path)
-        file_storage_mode = connection_storage_mode_from_payload(raw_payload)
-        payload = decoded_connections_payload(raw_payload)
+        try:
+            raw_payload = read_raw_connections_payload(self.path)
+            file_storage_mode = connection_storage_mode_from_payload(raw_payload)
+            payload = decoded_connections_payload(raw_payload)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            backup = backup_invalid_file(self.path)
+            self.recovery_messages.append(str(backup or self.path))
+            self.data = StoreData(
+                terminal=self.settings_store.terminal,
+                app=self.settings_store.app,
+                statistics=self.statistics_store.data,
+            )
+            return
         legacy_statistics = payload.get("statistics")
         if legacy_statistics and not self.statistics_store.path.exists():
             self.statistics_store.data = StatisticsSettings(**legacy_statistics)
