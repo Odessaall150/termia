@@ -49,7 +49,7 @@ class ConfigActionsMixin:
         if file and file.get_path():
             self.store.save_connections()
             export_connections_file(self.store.path, Path(file.get_path()))
-            self.toast_label.set_label("Configuración exportada")
+            self.toast_label.set_label(self.t("export_config_success"))
 
     def on_import_config(self) -> None:
         dialog = Gtk.FileDialog(title=self.t("import_config"))
@@ -64,13 +64,13 @@ class ConfigActionsMixin:
             try:
                 imported = load_store_data_from_json(Path(file.get_path()), self.store.data)
             except (OSError, ValueError, TypeError) as exc:
-                self.toast_label.set_label(f"No se pudo importar JSON: {exc}")
+                self.toast_label.set_label(self.t("import_config_failed").format(error=exc))
                 return
             self.store.data = imported
             self.store.save_connections()
             self.apply_app_theme()
             self.refresh_list()
-            self.toast_label.set_label("Configuración importada")
+            self.toast_label.set_label(self.t("import_config_success"))
 
     def on_import_asbru_config(self) -> None:
         dialog = Gtk.FileDialog(title=self.t("import_asbru"))
@@ -86,10 +86,10 @@ class ConfigActionsMixin:
         try:
             payload = yaml.safe_load(Path(file.get_path()).read_text(encoding="utf-8")) or {}
         except (OSError, yaml.YAMLError) as exc:
-            self.toast_label.set_label(f"No se pudo importar YAML de Ásbrú: {exc}")
+            self.toast_label.set_label(self.t("import_asbru_failed").format(error=exc))
             return
         if not isinstance(payload, dict):
-            self.toast_label.set_label("El YAML de Ásbrú no tiene un formato compatible")
+            self.toast_label.set_label(self.t("import_asbru_invalid"))
             return
         if "__PAC__EXPORTED__PARTIAL_CONF" in payload:
             payload = payload["__PAC__EXPORTED__PARTIAL_CONF"]
@@ -97,4 +97,4 @@ class ConfigActionsMixin:
         added_groups, added_servers = merge_asbru_connections(self.store.data, imported_groups, imported_servers)
         self.store.save_connections()
         self.refresh_list()
-        self.toast_label.set_label(f"Ásbrú: {added_groups} grupos y {added_servers} servidores importados")
+        self.toast_label.set_label(self.t("import_asbru_success").format(groups=added_groups, servers=added_servers))

@@ -257,9 +257,25 @@ class PreferencesMixin:
                 combo.set_active_id(DEFAULT_KEYBINDINGS[action])
             return
         if response == Gtk.ResponseType.OK:
-            self.store.update_keybindings({action: combo.get_active_id() or "" for action, combo in combos})
+            keybindings = {action: combo.get_active_id() or "" for action, combo in combos}
+            conflict = self.duplicate_keybinding(keybindings)
+            if conflict:
+                self.toast_label.set_label(self.t("keybindings_conflict").format(shortcut=conflict))
+                return
+            self.store.update_keybindings(keybindings)
             self.toast_label.set_label(self.t("keybindings_settings_saved"))
         dialog.destroy()
+
+    def duplicate_keybinding(self, keybindings: dict[str, str]) -> str:
+        seen: set[str] = set()
+        for shortcut in keybindings.values():
+            normalized = normalize_keybinding(shortcut)
+            if not normalized:
+                continue
+            if normalized in seen:
+                return normalized
+            seen.add(normalized)
+        return ""
 
     def on_terminal_settings(self, _button: Gtk.Button) -> None:
         dialog = Gtk.Dialog(title=self.t("terminal"), transient_for=self, modal=True)

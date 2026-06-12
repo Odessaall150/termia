@@ -107,10 +107,15 @@ class TerminalSessionsMixin:
                 GLib.SpawnFlags.DEFAULT, None, None, None,
             )
         except GLib.Error as exc:
-            terminal.feed(f"No se pudo iniciar el proceso: {exc.message}\r\n".encode())
+            message = self.t("local_terminal_start_failed").format(error=exc.message)
+            retry_prompt = self.t("local_terminal_retry_prompt")
+            terminal.feed(f"{message}\r\n{retry_prompt}\r\n".encode())
             status_label.set_label("Error")
             session.connected = False
+            session.pending_reconnect = True
             disconnect_button.set_sensitive(False)
+            self.update_session_tab_title(session, self.t("tab_error_title").format(title=session.title))
+            self.toast_label.set_label(message)
             return
         session.child_pid = child_pid
         self.update_local_session_directory_title(session)
@@ -124,14 +129,14 @@ class TerminalSessionsMixin:
         session.connected = False
         session.disconnect_button.set_sensitive(False)
         if session.disconnect_requested:
-            session.status_label.set_label(f"Desconectada: {session.title}")
+            session.status_label.set_label(self.t("session_disconnected_status").format(title=session.title))
             return
         if self.child_status_successful(_status) and self.store.data.app.close_tab_on_ssh_exit:
             self.close_tab(session.id, session.page, disconnect=False)
-            self.toast_label.set_label(f"Sesion cerrada: {session.title}")
+            self.toast_label.set_label(self.t("local_terminal_closed").format(title=session.title))
             return
-        session.status_label.set_label(f"Cerrada: {session.title}")
-        self.update_session_tab_title(session, f"{session.title} (cerrada)")
+        session.status_label.set_label(self.t("session_closed_status").format(title=session.title))
+        self.update_session_tab_title(session, self.t("tab_closed_title").format(title=session.title))
 
     def open_terminal_tab(self, server: Server) -> None:
         session_id = str(uuid4())
@@ -214,9 +219,10 @@ class TerminalSessionsMixin:
 
         ssh_path = GLib.find_program_in_path("ssh")
         if ssh_path is None:
-            terminal.feed(b"No se encontro el cliente ssh en el PATH.\r\n")
-            session.status_label.set_label("Sin ssh")
-            self.mark_session_for_reconnect(session, server, "No se encontro ssh en el PATH")
+            message = self.t("ssh_missing")
+            terminal.feed(f"{message}\r\n".encode())
+            session.status_label.set_label(self.t("ssh_missing_status"))
+            self.mark_session_for_reconnect(session, server, message)
             return
 
         ssh_target = f"{server.user}@{server.host}"
@@ -234,12 +240,13 @@ class TerminalSessionsMixin:
         if use_sshpass:
             sshpass_path = GLib.find_program_in_path("sshpass")
             if sshpass_path is None:
-                terminal.feed(b"No se encontro sshpass. Instala sshpass o deja la contrasena vacia.\r\n")
-                session.status_label.set_label("Sin sshpass")
-                self.mark_session_for_reconnect(session, server, "No se encontro sshpass")
+                message = self.t("sshpass_missing")
+                terminal.feed(f"{message}\r\n".encode())
+                session.status_label.set_label(self.t("sshpass_missing_status"))
+                self.mark_session_for_reconnect(session, server, message)
                 return
             command = [sshpass_path, "-e", *command]
-        terminal.feed(f"Conectando: {' '.join(command)}\r\n\r\n".encode())
+        terminal.feed(f"{self.t('ssh_connecting_command').format(command=' '.join(command))}\r\n\r\n".encode())
         terminal.grab_focus()
         try:
             _ok, child_pid = terminal.spawn_sync(
@@ -253,9 +260,10 @@ class TerminalSessionsMixin:
                 None,
             )
         except GLib.Error as exc:
-            terminal.feed(f"No se pudo iniciar ssh: {exc.message}\r\n".encode())
+            message = self.t("ssh_start_failed").format(error=exc.message)
+            terminal.feed(f"{message}\r\n".encode())
             session.status_label.set_label("Error")
-            self.mark_session_for_reconnect(session, server, f"No se pudo iniciar ssh para {server.name}")
+            self.mark_session_for_reconnect(session, server, self.t("ssh_start_failed_toast").format(name=server.name))
             return
 
         session.child_pid = child_pid
@@ -263,7 +271,7 @@ class TerminalSessionsMixin:
         terminal.connect("child-exited", self.on_terminal_exited, server, session)
         self.record_connection(server.id)
         session.status_label.set_label(f"{server.name} · PID {child_pid}")
-        self.toast_label.set_label(f"Sesion abierta: {session.title}")
+        self.toast_label.set_label(self.t("session_opened").format(title=session.title))
 
     def mark_session_for_reconnect(self, session: TerminalSession, server: Server, toast: str) -> None:
         session.connected = False
@@ -272,7 +280,7 @@ class TerminalSessionsMixin:
         self.toast_label.set_label(toast)
         prompt = f"  {self.t('reconnect_prompt')}  "
         session.terminal.feed(f"\r\n\x1b[1;30;48;2;255;213;79m{prompt}\x1b[0m\r\n".encode())
-        self.update_session_tab_title(session, f"{session.title} (error)")
+        self.update_session_tab_title(session, self.t("tab_error_title").format(title=session.title))
 
     def reconnect_session(self, session: TerminalSession) -> None:
         if not session.pending_reconnect or session.server_id is None:
@@ -280,11 +288,18 @@ class TerminalSessionsMixin:
         server = find_server(self.store.data.servers, session.server_id)
         if server is None:
             session.pending_reconnect = False
-            self.toast_label.set_label("No se encontro el servidor para reconectar")
+            self.toast_label.set_label(self.t("server_reconnect_missing"))
             return
         session.pending_reconnect = False
         self.close_tab(session.id, session.page, disconnect=False)
         self.open_terminal_tab(server)
+
+    def retry_local_terminal_session(self, session: TerminalSession) -> None:
+        if not session.pending_reconnect or session.server_id is not None:
+            return
+        session.pending_reconnect = False
+        self.close_tab(session.id, session.page, disconnect=False)
+        self.on_open_local_terminal(None)
 
     def child_status_successful(self, status: int) -> bool:
         if status == 0:
@@ -389,7 +404,10 @@ class TerminalSessionsMixin:
     ) -> bool:
         enter_keys = {Gdk.KEY_Return, Gdk.KEY_KP_Enter, getattr(Gdk, "KEY_ISO_Enter", Gdk.KEY_Return)}
         if keyval in enter_keys and session.pending_reconnect:
-            self.reconnect_session(session)
+            if session.server_id is None:
+                self.retry_local_terminal_session(session)
+            else:
+                self.reconnect_session(session)
             return True
         keybindings = self.store.data.app.keybindings
         if keybinding_matches(keybindings.get("copy", ""), keyval, state):
@@ -623,9 +641,9 @@ class TerminalSessionsMixin:
             return
         self.confirm_session_action(
             session,
-            "Desconectar sesion",
-            f"Quieres desconectar {session.title}?",
-            "Desconectar",
+            self.t("disconnect_session_title"),
+            self.t("disconnect_session_detail").format(title=session.title),
+            self.t("disconnect_session_confirm"),
             lambda: self.disconnect_session(session),
         )
 
@@ -639,17 +657,18 @@ class TerminalSessionsMixin:
             except ProcessLookupError:
                 pass
             except PermissionError:
-                session.terminal.feed(b"No se pudo enviar SIGTERM al proceso ssh.\r\n")
-                self.toast_label.set_label(f"No se pudo desconectar {session.title}")
+                message = self.t("sigterm_failed")
+                session.terminal.feed(f"{message}\r\n".encode())
+                self.toast_label.set_label(message)
                 return
         self.record_session_duration(session)
         self.save_statistics_now()
         session.connected = False
         session.disconnect_button.set_sensitive(False)
-        session.status_label.set_label(f"Desconectada: {session.title}")
-        session.terminal.feed(b"\r\nSesion desconectada.\r\n")
-        self.update_session_tab_title(session, f"{session.title} (desconectada)")
-        self.toast_label.set_label(f"Sesion desconectada: {session.title}")
+        session.status_label.set_label(self.t("session_disconnected_status").format(title=session.title))
+        session.terminal.feed(f"\r\n{self.t('session_disconnected_terminal')}\r\n".encode())
+        self.update_session_tab_title(session, self.t("tab_disconnected_title").format(title=session.title))
+        self.toast_label.set_label(self.t("session_disconnected_toast").format(title=session.title))
         if self.store.data.app.close_tab_on_disconnect:
             self.close_tab(session.id, session.page, disconnect=False)
 
@@ -662,7 +681,7 @@ class TerminalSessionsMixin:
         on_confirm: Any,
     ) -> None:
         dialog = Gtk.AlertDialog(message=title, detail=message)
-        dialog.set_buttons(["Cancelar", confirm_label])
+        dialog.set_buttons([self.t("cancel"), confirm_label])
         dialog.set_cancel_button(0)
         dialog.set_default_button(0)
         dialog.choose(self, None, self.on_confirm_session_action, (dialog, session, on_confirm))
@@ -693,18 +712,18 @@ class TerminalSessionsMixin:
         session.connected = False
         session.disconnect_button.set_sensitive(False)
         if session.disconnect_requested:
-            session.status_label.set_label(f"Desconectada: {session.title}")
-            self.toast_label.set_label(f"Sesion desconectada: {session.title}")
+            session.status_label.set_label(self.t("session_disconnected_status").format(title=session.title))
+            self.toast_label.set_label(self.t("session_disconnected_toast").format(title=session.title))
             return
         if self.child_status_successful(_status):
             if self.store.data.app.close_tab_on_ssh_exit:
                 self.close_tab(session.id, session.page, disconnect=False)
-                self.toast_label.set_label(f"Sesion cerrada: {server.name}")
+                self.toast_label.set_label(self.t("session_closed_toast").format(title=server.name))
                 return
-            session.status_label.set_label(f"Cerrada: {session.title}")
-            self.update_session_tab_title(session, f"{session.title} (cerrada)")
-            self.toast_label.set_label(f"Sesion cerrada: {server.name}")
+            session.status_label.set_label(self.t("session_closed_status").format(title=session.title))
+            self.update_session_tab_title(session, self.t("tab_closed_title").format(title=session.title))
+            self.toast_label.set_label(self.t("session_closed_toast").format(title=server.name))
             return
         session.status_label.set_label(f"Error: {session.title}")
-        self.mark_session_for_reconnect(session, server, f"Fallo de conexion: {server.name}")
+        self.mark_session_for_reconnect(session, server, self.t("connection_failed_toast").format(title=server.name))
 
